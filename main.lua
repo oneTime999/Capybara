@@ -209,7 +209,6 @@ sendWeatherWebhook()
 sendMerchantWebhook()
 
 local lastMinute5 = -1
-local lastMinute10 = -1
 
 task.spawn(function()
     while task.wait(1) do
@@ -222,13 +221,6 @@ task.spawn(function()
                 sendEggWebhook()
                 sendGearWebhook()
                 sendWeatherWebhook()
-            end
-        end
-        
-        if currentMinute % 10 == 0 then
-            if currentMinute ~= lastMinute10 then
-                lastMinute10 = currentMinute
-                task.wait(2)
                 sendMerchantWebhook()
             end
         end
