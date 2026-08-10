@@ -1,7 +1,17 @@
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local VirtualUser = game:GetService("VirtualUser")
+local Workspace = game:GetService("Workspace")
 
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1535448086875340932/nUW3FzUCxno2gDk9ahnIZZhBtjPHmpt6-JJNsrDZtV0-76Iu219MasTnU3NMplw_urAD"
+Players.LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3FzUCxno2gDk9ahnIZZhBtjPHmpt6-JJNsrDZtV0-76Iu219MasTnU3NMplw_urAD"
+local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
+local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
+local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
 
 local roleMap = {
     ["angel"] = "1535453948662784051",
@@ -22,6 +32,11 @@ local emojiMap = {
     ["angel"] = "<:angelcapybaraegg:1535646222566555668>"
 }
 
+local validWeathers = {
+    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", 
+    "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
+}
+
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
 
 local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -31,8 +46,9 @@ local PlayerGui = player:WaitForChild("PlayerGui")
 local MainGui = PlayerGui:WaitForChild("MainGui")
 local Root = MainGui:WaitForChild("Root")
 local Frames = Root:WaitForChild("Frames")
-local EggShop = Frames:WaitForChild("EggShop")
-local List = EggShop:WaitForChild("List")
+local EggShopList = Frames:WaitForChild("EggShop"):WaitForChild("List")
+local GearShopList = Frames:WaitForChild("GearShop"):WaitForChild("List")
+local WeatherIconsFolder = Root:WaitForChild("WeatherIcons")
 
 local function getBrasiliaTime()
     local utcTime = os.time()
@@ -50,13 +66,21 @@ local function getEmojiForEgg(eggName)
     return defaultEmoji
 end
 
-local function sendWebhookEmbed()
+local function sendWebhookRequest(url, data)
     if not httprequest then return end
+    httprequest({
+        Url = url,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode(data)
+    })
+end
 
+local function sendEggWebhook()
     local descriptionLines = {}
     local mentions = {}
     
-    for _, item in ipairs(List:GetChildren()) do
+    for _, item in ipairs(EggShopList:GetChildren()) do
         if string.find(string.lower(item.Name), "egg") then
             local stockLabel = item:FindFirstChild("Stock")
             local stockText = stockLabel and stockLabel.Text or "Unknown"
@@ -97,28 +121,115 @@ local function sendWebhookEmbed()
             ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
         }}
     }
-
-    httprequest({
-        Url = WEBHOOK_URL,
-        Method = "POST",
-        Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode(data)
-    })
+    sendWebhookRequest(EGG_WEBHOOK, data)
 end
 
-sendWebhookEmbed()
+local function sendGearWebhook()
+    local descriptionLines = {}
+    
+    for _, item in ipairs(GearShopList:GetChildren()) do
+        local stockLabel = item:FindFirstChild("Stock")
+        if stockLabel then
+            local stockText = stockLabel.Text
+            if not string.find(string.upper(stockText), "NO STOCK") then
+                local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
+                table.insert(descriptionLines, "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
+            end
+        end
+    end
 
-local lastSentMinute = -1
+    local finalDescription = table.concat(descriptionLines, "\n")
+    if finalDescription == "" then finalDescription = "❌ *No gears currently in stock.*" end
+    
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "⚙️ Gear Shop Restock",
+            ["description"] = finalDescription,
+            ["color"] = 3447003,
+            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+        }}
+    }
+    sendWebhookRequest(GEAR_WEBHOOK, data)
+end
+
+local function sendWeatherWebhook()
+    local activeWeathers = {}
+    
+    for _, icon in ipairs(WeatherIconsFolder:GetChildren()) do
+        if table.find(validWeathers, icon.Name) then
+            table.insert(activeWeathers, "🌤️ **" .. icon.Name .. "**")
+        end
+    end
+    
+    local finalDescription = table.concat(activeWeathers, "\n")
+    if finalDescription == "" then finalDescription = "☁️ *No special weather events active.*" end
+    
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "🌦️ Weather Status",
+            ["description"] = finalDescription,
+            ["color"] = 16776960,
+            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+        }}
+    }
+    sendWebhookRequest(WEATHER_WEBHOOK, data)
+end
+
+local function sendMerchantWebhook()
+    local merchantName = "Unknown"
+    local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
+    local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
+    local merchantNpc = npcsFolder and npcsFolder:FindFirstChild("MerchantNPC")
+    
+    if merchantNpc then
+        local attr = merchantNpc:GetAttribute("MerchantName")
+        local childVal = merchantNpc:FindFirstChild("MerchantName")
+        
+        if attr then
+            merchantName = tostring(attr)
+        elseif childVal and childVal:IsA("StringValue") then
+            merchantName = childVal.Value
+        end
+    end
+    
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "🧑‍💼 Merchant Status",
+            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`",
+            ["color"] = 15105570,
+            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+        }}
+    }
+    sendWebhookRequest(MERCHANT_WEBHOOK, data)
+end
+
+sendEggWebhook()
+sendGearWebhook()
+sendWeatherWebhook()
+sendMerchantWebhook()
+
+local lastMinute5 = -1
+local lastMinute10 = -1
 
 task.spawn(function()
     while task.wait(1) do
         local currentMinute = tonumber(os.date("!%M", os.time()))
         
         if currentMinute % 5 == 0 then
-            if currentMinute ~= lastSentMinute then
-                lastSentMinute = currentMinute
+            if currentMinute ~= lastMinute5 then
+                lastMinute5 = currentMinute
                 task.wait(2)
-                sendWebhookEmbed()
+                sendEggWebhook()
+                sendGearWebhook()
+                sendWeatherWebhook()
+            end
+        end
+        
+        if currentMinute % 10 == 0 then
+            if currentMinute ~= lastMinute10 then
+                lastMinute10 = currentMinute
+                task.wait(2)
+                sendMerchantWebhook()
             end
         end
     end
