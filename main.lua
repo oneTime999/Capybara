@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
+local GuiService = game:GetService("GuiService")
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -202,6 +203,20 @@ local function sendMerchantWebhook()
     }
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
 end
+
+GuiService.ErrorMessageChanged:Connect(function(errorMessage)
+    if errorMessage and errorMessage ~= "" then
+        local data = {
+            ["embeds"] = {{
+                ["title"] = "⚠️ Disconnected",
+                ["description"] = "The player has been disconnected from the game.\n\n**Reason:** `" .. errorMessage .. "`",
+                ["color"] = 16711680,
+                ["footer"] = { ["text"] = "Disconnected at " .. getBrasiliaTime() }
+            }}
+        }
+        sendWebhookRequest(EGG_WEBHOOK, data)
+    end
+end)
 
 sendEggWebhook()
 sendGearWebhook()
