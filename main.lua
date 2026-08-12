@@ -45,7 +45,10 @@ local weatherMutations = {
     ["Snow"] = "Chilly",
     ["Blizzard"] = "Permafrost",
     ["Heatwave"] = "Toasty",
-    ["Glitch"] = "Glitched"
+    ["Glitch"] = "Glitched",
+    ["Meteor Shower"] = "Celestial",
+    ["Rain"] = "+25% Faster Plant Spawnrate",
+    ["Red Sun"] = "Scorched"
 }
 
 local weatherRoles = {
@@ -53,7 +56,10 @@ local weatherRoles = {
     ["Toasty"] = "1537221683667279914",
     ["Permafrost"] = "1537221644391551066",
     ["Tranquil"] = "1537221598313058304",
-    ["Shocked"] = "1537221553031221328"
+    ["Shocked"] = "1537221553031221328",
+    ["Celestial"] = "1537231135552311358",
+    ["+25% Faster Plant Spawnrate"] = "1537231219572473928",
+    ["Scorched"] = "1537231281731928146"
 }
 
 local merchantItemRoles = {
