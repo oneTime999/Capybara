@@ -202,11 +202,19 @@ local function sendWeatherWebhook()
     
     for _, icon in ipairs(WeatherIconsFolder:GetChildren()) do
         if table.find(validWeathers, icon.Name) then
-            local displayName = weatherMutations[icon.Name] or icon.Name
+            local mutationName = weatherMutations[icon.Name]
+            local displayName = icon.Name
+            local roleKey = icon.Name
+            
+            if mutationName then
+                displayName = icon.Name .. " -> " .. mutationName
+                roleKey = mutationName
+            end
+            
             table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
             
-            if weatherRoles[displayName] then
-                table.insert(mentions, "<@&" .. weatherRoles[displayName] .. ">")
+            if weatherRoles[roleKey] then
+                table.insert(mentions, "<@&" .. weatherRoles[roleKey] .. ">")
             end
         end
     end
@@ -262,9 +270,15 @@ local function sendMerchantWebhook()
                 if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
                     local itemName = item.Name
                     if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
-                        table.insert(itemsList, "📦 **" .. itemName .. "**")
-                        if merchantItemRoles[itemName] then
-                            table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+                        local stockLabel = item:FindFirstChild("Stock")
+                        local stockText = stockLabel and stockLabel.Text or "Unknown"
+                        
+                        if stockText ~= "Unknown" and not string.find(string.upper(stockText), "NO STOCK") then
+                            local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
+                            table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
+                            if merchantItemRoles[itemName] then
+                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+                            end
                         end
                     end
                 end
