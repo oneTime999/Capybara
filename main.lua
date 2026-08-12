@@ -255,24 +255,31 @@ local function sendMerchantWebhook()
     local itemsList = {}
     local mentions = {}
     
-    local merchantShopList = MerchantShop:FindFirstChild("List")
-    if merchantShopList then
-        for _, item in ipairs(merchantShopList:GetChildren()) do
-            if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
-                local itemName = item.Name
-                if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
-                    table.insert(itemsList, "📦 **" .. itemName .. "**")
-                    if merchantItemRoles[itemName] then
-                        table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+    if merchantName ~= "Unknown" then
+        local merchantShopList = MerchantShop:FindFirstChild("List")
+        if merchantShopList then
+            for _, item in ipairs(merchantShopList:GetChildren()) do
+                if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
+                    local itemName = item.Name
+                    if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
+                        table.insert(itemsList, "📦 **" .. itemName .. "**")
+                        if merchantItemRoles[itemName] then
+                            table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+                        end
                     end
                 end
             end
         end
     end
     
-    local itemsDescription = table.concat(itemsList, "\n")
-    if itemsDescription == "" then
-        itemsDescription = "*No items currently available.*"
+    local itemsDescription = ""
+    if merchantName == "Unknown" then
+        itemsDescription = "*No merchant currently active.*"
+    else
+        itemsDescription = table.concat(itemsList, "\n")
+        if itemsDescription == "" then
+            itemsDescription = "*No items currently available.*"
+        end
     end
     
     local uniqueMentions = ""
