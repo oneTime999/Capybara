@@ -346,10 +346,14 @@ task.spawn(function()
             if currentMinute ~= lastMinute5 then
                 lastMinute5 = currentMinute
                 task.wait(2)
+                
                 sendEggWebhook()
                 sendGearWebhook()
                 sendWeatherWebhook()
-                sendMerchantWebhook()
+                
+                if currentMinute % 10 == 0 then
+                    sendMerchantWebhook()
+                end
             end
         end
     end
