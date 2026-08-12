@@ -34,8 +34,44 @@ local emojiMap = {
 }
 
 local validWeathers = {
-    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", 
+    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", "Snow",
     "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
+}
+
+local weatherMutations = {
+    ["Thunder"] = "Shocked",
+    ["Zen"] = "Tranquil",
+    ["Snowy"] = "Chilly",
+    ["Snow"] = "Chilly",
+    ["Blizzard"] = "Permafrost",
+    ["Heatwave"] = "Toasty",
+    ["Glitch"] = "Glitched"
+}
+
+local weatherRoles = {
+    ["Glitched"] = "1537221727535370321",
+    ["Toasty"] = "1537221683667279914",
+    ["Permafrost"] = "1537221644391551066",
+    ["Tranquil"] = "1537221598313058304",
+    ["Shocked"] = "1537221553031221328"
+}
+
+local merchantItemRoles = {
+    ["Gilded Hatch Hammer"] = "1537226549689065605",
+    ["Gold Scroll"] = "1537226610430713886",
+    ["Totem Of Status"] = "1537226662863831100",
+    ["Raygun"] = "1537226801049509929",
+    ["Alien Tesla"] = "1537226928959000758",
+    ["Totem Of Stars"] = "1537226952287723571",
+    ["Totem Of Might"] = "1537227181107970168",
+    ["Totem Of Marrow"] = "1537227221536608266",
+    ["Rainbow Scroll"] = "1537227245238878318",
+    ["Moonlit Scroll"] = "1537227098186580038",
+    ["Chilly Scroll"] = "1537227678854418492",
+    ["Toasty Scroll"] = "1537227446766800906",
+    ["Tranquil Scroll"] = "1537227539980750888",
+    ["Shocked Scroll"] = "1537227413849776138",
+    ["Glitched Scroll"] = "1537227387412942909"
 }
 
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
@@ -50,6 +86,7 @@ local Frames = Root:WaitForChild("Frames")
 local EggShopList = Frames:WaitForChild("EggShop"):WaitForChild("List")
 local GearShopList = Frames:WaitForChild("GearShop"):WaitForChild("List")
 local WeatherIconsFolder = Root:WaitForChild("WeatherIcons")
+local MerchantShop = Frames:WaitForChild("MerchantShop")
 
 local function getBrasiliaTime()
     local utcTime = os.time()
@@ -155,17 +192,33 @@ end
 
 local function sendWeatherWebhook()
     local activeWeathers = {}
+    local mentions = {}
     
     for _, icon in ipairs(WeatherIconsFolder:GetChildren()) do
         if table.find(validWeathers, icon.Name) then
-            table.insert(activeWeathers, "🌤️ **" .. icon.Name .. "**")
+            local displayName = weatherMutations[icon.Name] or icon.Name
+            table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
+            
+            if weatherRoles[displayName] then
+                table.insert(mentions, "<@&" .. weatherRoles[displayName] .. ">")
+            end
         end
     end
     
     local finalDescription = table.concat(activeWeathers, "\n")
     if finalDescription == "" then finalDescription = "☁️ *No special weather events active.*" end
     
+    local uniqueMentions = ""
+    local seen = {}
+    for _, m in ipairs(mentions) do
+        if not seen[m] then
+            uniqueMentions = uniqueMentions .. m .. " "
+            seen[m] = true
+        end
+    end
+    
     local data = {
+        ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
             ["title"] = "🌦️ Weather Status",
             ["description"] = finalDescription,
@@ -193,10 +246,43 @@ local function sendMerchantWebhook()
         end
     end
     
+    local itemsList = {}
+    local mentions = {}
+    
+    local merchantShopList = MerchantShop:FindFirstChild("List")
+    if merchantShopList then
+        for _, item in ipairs(merchantShopList:GetChildren()) do
+            if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
+                local itemName = item.Name
+                if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
+                    table.insert(itemsList, "📦 **" .. itemName .. "**")
+                    if merchantItemRoles[itemName] then
+                        table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+                    end
+                end
+            end
+        end
+    end
+    
+    local itemsDescription = table.concat(itemsList, "\n")
+    if itemsDescription == "" then
+        itemsDescription = "*No items currently available.*"
+    end
+    
+    local uniqueMentions = ""
+    local seen = {}
+    for _, m in ipairs(mentions) do
+        if not seen[m] then
+            uniqueMentions = uniqueMentions .. m .. " "
+            seen[m] = true
+        end
+    end
+    
     local data = {
+        ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
             ["title"] = "🧑‍💼 Merchant Status",
-            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`",
+            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
             ["color"] = 15105570,
             ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
         }}
