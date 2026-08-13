@@ -94,12 +94,6 @@ local GearShopList = Frames:WaitForChild("GearShop"):WaitForChild("List")
 local WeatherIconsFolder = Root:WaitForChild("WeatherIcons")
 local MerchantShop = Frames:WaitForChild("MerchantShop")
 
-local function getBrasiliaTime()
-    local utcTime = os.time()
-    local brasiliaTime = utcTime - (3 * 3600)
-    return os.date("!%H:%M:%S (BRT)", brasiliaTime)
-end
-
 local function getEmojiForEgg(eggName)
     local lowerName = string.lower(eggName)
     for key, emoji in pairs(emojiMap) do
@@ -161,11 +155,12 @@ local function sendEggWebhook()
         ["embeds"] = {{
             ["title"] = "🏪 Egg Shop Restock",
             ["description"] = finalDescription,
-            ["color"] = 65280,
+            ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334893397282896/ChatGPT_Image_13_de_ago._de_2026_02_39_49_1.png?ex=6a7eaa30&is=6a7d58b0&hm=8459ab8db1d21cbff1f8aedda35902f521a524c822933c87afcfc5c49f714d89&"
             },
-            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
     sendWebhookRequest(EGG_WEBHOOK, data)
@@ -192,11 +187,12 @@ local function sendGearWebhook()
         ["embeds"] = {{
             ["title"] = "⚙️ Gear Shop Restock",
             ["description"] = finalDescription,
-            ["color"] = 3447003,
+            ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334893846204416/ChatGPT_Image_13_de_ago._de_2026_02_39_49_2.png?ex=6a7eaa30&is=6a7d58b0&hm=f217b1699c4a3c3a6ccaf89d57e3f8d48ce48002bf71338b17cc73cfeac36757&"
             },
-            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
     sendWebhookRequest(GEAR_WEBHOOK, data)
@@ -242,11 +238,12 @@ local function sendWeatherWebhook()
         ["embeds"] = {{
             ["title"] = "🌦️ Weather Status",
             ["description"] = finalDescription,
-            ["color"] = 16776960,
+            ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892818604053/ChatGPT_Image_13_de_ago._de_2026_02_39_49_4.png?ex=6a7eaa30&is=6a7d58b0&hm=0fb53641115bf847c2c20b23b6748242ba06ec417c5b04e1f0c7e105fc2ae870&"
             },
-            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
     sendWebhookRequest(WEATHER_WEBHOOK, data)
@@ -319,11 +316,12 @@ local function sendMerchantWebhook()
         ["embeds"] = {{
             ["title"] = "🧑‍💼 Merchant Status",
             ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
-            ["color"] = 15105570,
+            ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892382388244/ChatGPT_Image_13_de_ago._de_2026_02_39_49_3.png?ex=6a7eaa30&is=6a7d58b0&hm=7e466c54c9b946d2906bfc68be8d3f2cce3b166c4d4c755400b297b778b72a40&"
             },
-            ["footer"] = { ["text"] = "Updated at " .. getBrasiliaTime() }
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
@@ -336,7 +334,8 @@ GuiService.ErrorMessageChanged:Connect(function(errorMessage)
                 ["title"] = "⚠️ Disconnected",
                 ["description"] = "The player has been disconnected from the game.\n\n**Reason:** `" .. errorMessage .. "`",
                 ["color"] = 16711680,
-                ["footer"] = { ["text"] = "Disconnected at " .. getBrasiliaTime() }
+                ["footer"] = { ["text"] = "Disconnected" },
+                ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
         sendWebhookRequest(EGG_WEBHOOK, data)
