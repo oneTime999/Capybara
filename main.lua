@@ -3,6 +3,10 @@ local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 local GuiService = game:GetService("GuiService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
+local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -80,6 +84,29 @@ local merchantItemRoles = {
     ["Glitched Scroll"] = "1537227387412942909"
 }
 
+local merchantItemsToBuy = {
+    "Gilded Hatch Hammer",
+    "Gold Scroll",
+    "Totem Of Status",
+    "Raygun",
+    "Alien Tesla",
+    "Totem Of Stars",
+    "Totem Of Might",
+    "Totem Of Marrow",
+    "Rainbow Scroll",
+    "Moonlit Scroll",
+    "Chilly Scroll",
+    "Toasty Scroll",
+    "Tranquil Scroll",
+    "Shocked Scroll",
+    "Glitched Scroll"
+}
+
+local targetEggsToBuy = {
+    "Angel Capybara Egg",
+    "Disco Capybara Egg"
+}
+
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
 
 local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -112,6 +139,18 @@ local function sendWebhookRequest(url, data)
         Headers = { ["Content-Type"] = "application/json" },
         Body = HttpService:JSONEncode(data)
     })
+end
+
+local function autoBuyTargetEggs()
+    for _, eggName in ipairs(targetEggsToBuy) do
+        BuyItem:FireServer(eggName)
+    end
+end
+
+local function autoBuyTargetMerchantItems()
+    for _, itemName in ipairs(merchantItemsToBuy) do
+        BuyMerchantItem:FireServer(itemName)
+    end
 end
 
 local function sendEggWebhook()
@@ -163,7 +202,9 @@ local function sendEggWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+    
     sendWebhookRequest(EGG_WEBHOOK, data)
+    autoBuyTargetEggs()
 end
 
 local function sendGearWebhook()
@@ -195,6 +236,7 @@ local function sendGearWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+    
     sendWebhookRequest(GEAR_WEBHOOK, data)
 end
 
@@ -246,6 +288,7 @@ local function sendWeatherWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+    
     sendWebhookRequest(WEATHER_WEBHOOK, data)
 end
 
@@ -324,7 +367,9 @@ local function sendMerchantWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+    
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
+    autoBuyTargetMerchantItems()
 end
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
