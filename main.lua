@@ -414,7 +414,7 @@ task.spawn(function()
                 task.spawn(sendGearWebhook)
                 task.spawn(sendWeatherWebhook)
                 
-                if currentMinute % 10 == 0 then
+                if currentMinute % 20 == 0 then
                     task.spawn(sendMerchantWebhook)
                 end
             end
