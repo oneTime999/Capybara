@@ -11,10 +11,10 @@ Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
-local EGG_WEBHOOK = "PASTE_EGG_WEBHOOK_HERE"
-local GEAR_WEBHOOK = "PASTE_GEAR_WEBHOOK_HERE"
-local WEATHER_WEBHOOK = "PASTE_WEATHER_WEBHOOK_HERE"
-local MERCHANT_WEBHOOK = "PASTE_MERCHANT_WEBHOOK_HERE"
+local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3FzUCxno2gDk9ahnIZZhBtjPHmpt6-JJNsrDZtV0-76Iu219MasTnU3NMplw_urAD"
+local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
+local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
+local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
 
 local roleMap = {
     ["angel"] = "1535453948662784051",
@@ -53,6 +53,7 @@ local validWeathers = {
 
 local weatherMutations = {
     ["Thunder"] = "Shocked",
+    ["Night"] = "Moonlight",
     ["Zen"] = "Tranquil",
     ["Snowy"] = "Chilly",
     ["Snow"] = "Chilly",
@@ -71,6 +72,7 @@ local weatherRoles = {
     ["Tranquil"] = "1537221598313058304",
     ["Shocked"] = "1537221553031221328",
     ["Celestial"] = "1537231135552311358",
+    ["Moonlight"] = "1537502984450084885",
     ["+25% Faster Plant Spawnrate"] = "1537231219572473928",
     ["Scorched"] = "1537231281731928146"
 }
