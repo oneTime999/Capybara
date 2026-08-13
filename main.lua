@@ -342,10 +342,10 @@ GuiService.ErrorMessageChanged:Connect(function(errorMessage)
     end
 end)
 
-sendEggWebhook()
-sendGearWebhook()
-sendWeatherWebhook()
-sendMerchantWebhook()
+task.spawn(sendEggWebhook)
+task.spawn(sendGearWebhook)
+task.spawn(sendWeatherWebhook)
+task.spawn(sendMerchantWebhook)
 
 local lastMinute5 = -1
 
@@ -356,14 +356,13 @@ task.spawn(function()
         if currentMinute % 5 == 0 then
             if currentMinute ~= lastMinute5 then
                 lastMinute5 = currentMinute
-                task.wait(2)
                 
-                sendEggWebhook()
-                sendGearWebhook()
-                sendWeatherWebhook()
+                task.spawn(sendEggWebhook)
+                task.spawn(sendGearWebhook)
+                task.spawn(sendWeatherWebhook)
                 
                 if currentMinute % 10 == 0 then
-                    sendMerchantWebhook()
+                    task.spawn(sendMerchantWebhook)
                 end
             end
         end
