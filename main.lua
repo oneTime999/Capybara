@@ -390,7 +390,11 @@ end)
 task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
-task.spawn(sendMerchantWebhook)
+
+task.spawn(function()
+    task.wait(60)
+    sendMerchantWebhook()
+end)
 
 local lastMinute5 = -1
 
@@ -407,7 +411,10 @@ task.spawn(function()
                 task.spawn(sendWeatherWebhook)
                 
                 if currentMinute % 10 == 0 then
-                    task.spawn(sendMerchantWebhook)
+                    task.spawn(function()
+                        task.wait(60)
+                        sendMerchantWebhook()
+                    end)
                 end
             end
         end
