@@ -204,7 +204,11 @@ local function sendEggWebhook()
     }
     
     sendWebhookRequest(EGG_WEBHOOK, data)
-    autoBuyTargetEggs()
+    
+    task.spawn(function()
+        task.wait(60)
+        autoBuyTargetEggs()
+    end)
 end
 
 local function sendGearWebhook()
@@ -369,7 +373,11 @@ local function sendMerchantWebhook()
     }
     
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
-    autoBuyTargetMerchantItems()
+    
+    task.spawn(function()
+        task.wait(60)
+        autoBuyTargetMerchantItems()
+    end)
 end
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
@@ -390,11 +398,7 @@ end)
 task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
-
-task.spawn(function()
-    task.wait(60)
-    sendMerchantWebhook()
-end)
+task.spawn(sendMerchantWebhook)
 
 local lastMinute5 = -1
 
@@ -411,10 +415,7 @@ task.spawn(function()
                 task.spawn(sendWeatherWebhook)
                 
                 if currentMinute % 10 == 0 then
-                    task.spawn(function()
-                        task.wait(60)
-                        sendMerchantWebhook()
-                    end)
+                    task.spawn(sendMerchantWebhook)
                 end
             end
         end
