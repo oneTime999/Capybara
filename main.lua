@@ -1,4 +1,4 @@
-local Players = game:GetService("Players")
+         local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
@@ -206,21 +206,34 @@ end
 
 local function sendGearWebhook()
     local descriptionLines = {}
-    
+    local readyToBuyGears = {}
+
     for _, item in ipairs(GearShopList:GetChildren()) do
         local stockLabel = item:FindFirstChild("Stock")
+
         if stockLabel then
             local stockText = stockLabel.Text
+
             if not string.find(string.upper(stockText), "NO STOCK") then
-                local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
-                table.insert(descriptionLines, "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
+                local cleanStock = string.match(stockText, "x%d+")
+                    or string.gsub(stockText, "\n", " ")
+
+                table.insert(
+                    descriptionLines,
+                    "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                )
+
+                table.insert(readyToBuyGears, item.Name)
             end
         end
     end
 
     local finalDescription = table.concat(descriptionLines, "\n")
-    if finalDescription == "" then finalDescription = "❌ *No gears currently in stock.*" end
-    
+
+    if finalDescription == "" then
+        finalDescription = "❌ *No gears currently in stock.*"
+    end
+
     local data = {
         ["embeds"] = {{
             ["title"] = "⚙️ Gear Shop Restock",
@@ -233,8 +246,18 @@ local function sendGearWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
+
     sendWebhookRequest(GEAR_WEBHOOK, data)
+
+    for _, gearName in ipairs(readyToBuyGears) do
+        local args = {
+            [1] = gearName,
+            n = 1,
+        }
+
+        BuyItem:FireServer(unpack(args, 1, args.n or #args))
+        task.wait(0.5)
+    end
 end
 
 local function sendWeatherWebhook()
@@ -397,38 +420,6 @@ local function getMerchantName(merchantNpc)
     return "Merchant"
 end
 
-local function getMerchantItemName(item)
-    local itemName = trimText(item.Name)
-
-    local genericNames = {
-        ["item"] = true,
-        ["template"] = true,
-        ["frame"] = true,
-        ["slot"] = true
-    }
-
-    if itemName and not genericNames[string.lower(itemName)] and not tonumber(itemName) then
-        return itemName
-    end
-
-    local candidates = {
-        "ItemName",
-        "Name",
-        "Title"
-    }
-
-    for _, candidateName in ipairs(candidates) do
-        local label = item:FindFirstChild(candidateName, true)
-        local value = readTextObject(label)
-
-        if value then
-            return value
-        end
-    end
-
-    return nil
-end
-
 local function waitForMerchantList(merchantNpc, timeoutSeconds)
     local deadline = os.clock() + timeoutSeconds
 
@@ -441,12 +432,10 @@ local function waitForMerchantList(merchantNpc, timeoutSeconds)
 
         if list then
             for _, item in ipairs(list:GetChildren()) do
-                if item:IsA("GuiObject") then
-                    local stock = item:FindFirstChild("Stock", true)
+                local stockLabel = item:FindFirstChild("Stock")
 
-                    if stock and (stock:IsA("TextLabel") or stock:IsA("TextButton") or stock:IsA("TextBox")) then
-                        return list
-                    end
+                if stockLabel then
+                    return list
                 end
             end
         end
@@ -480,32 +469,27 @@ local function sendMerchantWebhook()
     local readyToBuyMerchant = {}
 
     for _, item in ipairs(merchantShopList:GetChildren()) do
-        if item:IsA("GuiObject") then
-            local stockLabel = item:FindFirstChild("Stock", true)
+        local stockLabel = item:FindFirstChild("Stock")
 
-            if stockLabel and (stockLabel:IsA("TextLabel") or stockLabel:IsA("TextButton") or stockLabel:IsA("TextBox")) then
-                local stockText = trimText(stockLabel.Text)
-                local itemName = getMerchantItemName(item)
+        if stockLabel then
+            local stockText = stockLabel.Text
 
-                if itemName
-                    and stockText
-                    and not string.find(string.upper(stockText), "NO STOCK", 1, true)
-                then
-                    local cleanStock = string.match(stockText, "x%d+")
-                        or string.gsub(stockText, "\n", " ")
+            if not string.find(string.upper(stockText), "NO STOCK") then
+                local cleanStock = string.match(stockText, "x%d+")
+                    or string.gsub(stockText, "\n", " ")
+                local itemName = item.Name
 
-                    table.insert(
-                        itemsList,
-                        "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
-                    )
+                table.insert(
+                    itemsList,
+                    "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                )
 
-                    if table.find(merchantItemsToBuy, itemName) then
-                        table.insert(readyToBuyMerchant, itemName)
-                    end
+                if table.find(merchantItemsToBuy, itemName) then
+                    table.insert(readyToBuyMerchant, itemName)
+                end
 
-                    if merchantItemRoles[itemName] then
-                        table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
-                    end
+                if merchantItemRoles[itemName] then
+                    table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
                 end
             end
         end
