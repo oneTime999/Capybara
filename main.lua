@@ -45,7 +45,6 @@ local validWeathers = {
 local weatherMutations = {
     ["Thunder"] = "Shocked",
     ["Zen"] = "Tranquil",
-    ["Snowy"] = "Chilly",
     ["Snow"] = "Chilly",
     ["Blizzard"] = "Permafrost",
     ["Heatwave"] = "Toasty",
@@ -56,6 +55,7 @@ local weatherMutations = {
 }
 
 local weatherRoles = {
+    ["Chilly"] = "1537689307614027958",
     ["Glitched"] = "1537221727535370321",
     ["Toasty"] = "1537221683667279914",
     ["Permafrost"] = "1537221644391551066",
