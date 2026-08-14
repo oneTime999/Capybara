@@ -3,10 +3,6 @@ local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
 local GuiService = game:GetService("GuiService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
-local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -84,29 +80,6 @@ local merchantItemRoles = {
     ["Glitched Scroll"] = "1537227387412942909"
 }
 
-local merchantItemsToBuy = {
-    "Gilded Hatch Hammer",
-    "Gold Scroll",
-    "Totem Of Status",
-    "Raygun",
-    "Alien Tesla",
-    "Totem Of Stars",
-    "Totem Of Might",
-    "Totem Of Marrow",
-    "Rainbow Scroll",
-    "Moonlit Scroll",
-    "Chilly Scroll",
-    "Toasty Scroll",
-    "Tranquil Scroll",
-    "Shocked Scroll",
-    "Glitched Scroll"
-}
-
-local targetEggsToBuy = {
-    "Angel Capybara Egg",
-    "Disco Capybara Egg"
-}
-
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
 
 local httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -139,18 +112,6 @@ local function sendWebhookRequest(url, data)
         Headers = { ["Content-Type"] = "application/json" },
         Body = HttpService:JSONEncode(data)
     })
-end
-
-local function autoBuyTargetEggs()
-    for _, eggName in ipairs(targetEggsToBuy) do
-        BuyItem:FireServer(eggName)
-    end
-end
-
-local function autoBuyTargetMerchantItems()
-    for _, itemName in ipairs(merchantItemsToBuy) do
-        BuyMerchantItem:FireServer(itemName)
-    end
 end
 
 local function sendEggWebhook()
@@ -202,13 +163,7 @@ local function sendEggWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
     sendWebhookRequest(EGG_WEBHOOK, data)
-    
-    task.spawn(function()
-        task.wait(60)
-        autoBuyTargetEggs()
-    end)
 end
 
 local function sendGearWebhook()
@@ -240,7 +195,6 @@ local function sendGearWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
     sendWebhookRequest(GEAR_WEBHOOK, data)
 end
 
@@ -292,15 +246,11 @@ local function sendWeatherWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
     sendWebhookRequest(WEATHER_WEBHOOK, data)
 end
 
 local function sendMerchantWebhook()
     local merchantName = "Unknown"
-    local merchantTime = "No active timer"
-    local isArriving = false
-    
     local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
     local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
     local merchantNpc = npcsFolder and npcsFolder:FindFirstChild("MerchantNPC")
@@ -316,25 +266,10 @@ local function sendMerchantWebhook()
         end
     end
     
-    local detailsFrame = MerchantShop:FindFirstChild("Details")
-    if detailsFrame then
-        local bgFrame = detailsFrame:FindFirstChild("Background")
-        if bgFrame then
-            local infoLabel = bgFrame:FindFirstChild("MerchantShopInfo")
-            if infoLabel and infoLabel:IsA("TextLabel") then
-                merchantTime = infoLabel.Text
-                local lowerText = string.lower(merchantTime)
-                if string.find(lowerText, "arrives") then
-                    isArriving = true
-                end
-            end
-        end
-    end
-    
     local itemsList = {}
     local mentions = {}
     
-    if merchantName ~= "Unknown" and not isArriving then
+    if merchantName ~= "Unknown" then
         local merchantShopList = MerchantShop:FindFirstChild("List")
         if merchantShopList then
             for _, item in ipairs(merchantShopList:GetChildren()) do
@@ -348,7 +283,7 @@ local function sendMerchantWebhook()
                             local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
                             table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
                             if merchantItemRoles[itemName] then
-                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] + ">") -- mantido ou corrigido para string se necessário, mas mantive sua estrutura original
+                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
                             end
                         end
                     end
@@ -358,9 +293,7 @@ local function sendMerchantWebhook()
     end
     
     local itemsDescription = ""
-    if isArriving then
-        itemsDescription = "*Merchant is arriving soon (Store closed).*️"
-    elseif merchantName == "Unknown" then
+    if merchantName == "Unknown" then
         itemsDescription = "*No merchant currently active.*"
     else
         itemsDescription = table.concat(itemsList, "\n")
@@ -381,9 +314,9 @@ local function sendMerchantWebhook()
     local data = {
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
-            ["title"] = isArriving and "⏳ Merchant Arriving Soon" or "🧑‍💼 Merchant Status",
-            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n⏳ **Status:** `" .. merchantTime .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
-            ["color"] = isArriving and 16776960 or 16711680,
+            ["title"] = "🧑‍💼 Merchant Status",
+            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
+            ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892382388244/ChatGPT_Image_13_de_ago._de_2026_02_39_49_3.png?ex=6a7eaa30&is=6a7d58b0&hm=7e466c54c9b946d2906bfc68be8d3f2cce3b166c4d4c755400b297b778b72a40&"
             },
@@ -391,15 +324,7 @@ local function sendMerchantWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
-    
-    if not isArriving and merchantName ~= "Unknown" then
-        task.spawn(function()
-            task.wait(60)
-            autoBuyTargetMerchantItems()
-        end)
-    end
 end
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
@@ -422,15 +347,15 @@ task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
 task.spawn(sendMerchantWebhook)
 
-local lastMinute = -1
+local lastMinute5 = -1
 
 task.spawn(function()
     while task.wait(1) do
         local currentMinute = tonumber(os.date("!%M", os.time()))
         
-        if currentMinute ~= lastMinute then
-            if currentMinute % 5 == 0 then
-                lastMinute = currentMinute
+        if currentMinute % 5 == 0 then
+            if currentMinute ~= lastMinute5 then
+                lastMinute5 = currentMinute
                 
                 task.spawn(sendEggWebhook)
                 task.spawn(sendGearWebhook)
