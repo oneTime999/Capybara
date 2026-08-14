@@ -306,32 +306,37 @@ local function sendMerchantWebhook()
         end
     end
     
+    -- [NOVIDADE]: Se não achou nome do merchant, simplesmente encerra a função aqui!
+    -- Isso evita varrer itens velhos e enviar webhook atoa pro Discord.
+    if merchantName == "Unknown" then
+        return
+    end
+    
+    -- A partir daqui, só roda se ele achar o Merchant com um nome válido (Ativo)
     local itemsList = {}
     local mentions = {}
     local readyToBuyMerchant = {} 
     
-    if merchantName ~= "Unknown" then
-        local merchantShopList = MerchantShop:FindFirstChild("List")
-        if merchantShopList then
-            for _, item in ipairs(merchantShopList:GetChildren()) do
-                if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
-                    local itemName = item.Name
-                    if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
-                        local stockLabel = item:FindFirstChild("Stock")
-                        local stockText = stockLabel and stockLabel.Text or "Unknown"
+    local merchantShopList = MerchantShop:FindFirstChild("List")
+    if merchantShopList then
+        for _, item in ipairs(merchantShopList:GetChildren()) do
+            if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
+                local itemName = item.Name
+                if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
+                    local stockLabel = item:FindFirstChild("Stock")
+                    local stockText = stockLabel and stockLabel.Text or "Unknown"
+                    
+                    if stockText ~= "Unknown" and not string.find(string.upper(stockText), "NO STOCK") then
+                        local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
                         
-                        if stockText ~= "Unknown" and not string.find(string.upper(stockText), "NO STOCK") then
-                            local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
-                            
-                            table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
-                            
-                            if table.find(merchantItemsToBuy, itemName) then
-                                table.insert(readyToBuyMerchant, itemName)
-                            end
-                            
-                            if merchantItemRoles[itemName] then
-                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
-                            end
+                        table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
+                        
+                        if table.find(merchantItemsToBuy, itemName) then
+                            table.insert(readyToBuyMerchant, itemName)
+                        end
+                        
+                        if merchantItemRoles[itemName] then
+                            table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
                         end
                     end
                 end
@@ -339,14 +344,9 @@ local function sendMerchantWebhook()
         end
     end
     
-    local itemsDescription = ""
-    if merchantName == "Unknown" then
-        itemsDescription = "*No merchant currently active.*"
-    else
-        itemsDescription = table.concat(itemsList, "\n")
-        if itemsDescription == "" then
-            itemsDescription = "*No items currently available.*"
-        end
+    local itemsDescription = table.concat(itemsList, "\n")
+    if itemsDescription == "" then
+        itemsDescription = "*No items currently available.*"
     end
     
     local uniqueMentions = ""
@@ -374,10 +374,8 @@ local function sendMerchantWebhook()
     
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
     
-    if merchantName ~= "Unknown" then
-        for _, itemName in ipairs(readyToBuyMerchant) do
-            BuyMerchantItem:FireServer(itemName)
-        end
+    for _, itemName in ipairs(readyToBuyMerchant) do
+        BuyMerchantItem:FireServer(itemName)
     end
 end
 
