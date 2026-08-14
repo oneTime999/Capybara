@@ -289,18 +289,19 @@ local function sendWeatherWebhook()
 end
 
 local function sendMerchantWebhook()
-    local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
-    local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
+    local world = Workspace:FindFirstChild("World")
+    local map = world and world:FindFirstChild("Map")
+    local npcs = map and map:FindFirstChild("NPCs")
     
-    -- Busca diretamente a existência do modelo do MerchantNPC
-    local merchantNpc = npcsFolder and npcsFolder:FindFirstChild("MerchantNPC")
+    -- Checa se o modelo MerchantNPC existe exatamente onde você especificou
+    local merchantNpc = npcs and npcs:FindFirstChild("MerchantNPC")
     
-    -- Se o modelo não existir no mapa, o merchant não está lá. Aborta!
+    -- Se não existir (desativado), a função para imediatamente sem erros
     if not merchantNpc then
         return
     end
     
-    -- Se chegou até aqui, o modelo existe! Tenta pegar o nome dele (ou usa um genérico se não tiver)
+    -- Se existir (ativo), pega o nome se houver ou usa o padrão
     local merchantName = "Wandering Merchant"
     local attr = merchantNpc:GetAttribute("MerchantName")
     local childVal = merchantNpc:FindFirstChild("MerchantName")
