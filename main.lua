@@ -38,15 +38,14 @@ local emojiMap = {
 }
 
 local validWeathers = {
-    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", "Snow",
-    "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
+    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
 }
 
 local weatherMutations = {
     ["Thunder"] = "Shocked",
     ["Zen"] = "Tranquil",
     ["Night"] = "Moonlight",
-    ["Snow"] = "Chilly",
+    ["Snowy"] = "Chilly",
     ["Blizzard"] = "Permafrost",
     ["Heatwave"] = "Toasty",
     ["Glitch"] = "Glitched",
@@ -63,6 +62,7 @@ local weatherRoles = {
     ["Tranquil"] = "1537221598313058304",
     ["Shocked"] = "1537221553031221328",
     ["Celestial"] = "1537231135552311358",
+    ["Moonlight"] = "1537502984450084885",
     ["+25% Faster Plant Spawnrate"] = "1537231219572473928",
     ["Scorched"] = "1537231281731928146"
 }
