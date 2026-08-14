@@ -289,30 +289,28 @@ local function sendWeatherWebhook()
 end
 
 local function sendMerchantWebhook()
-    local merchantName = "Unknown"
-    
     local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
     local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
+    
+    -- Busca diretamente a existência do modelo do MerchantNPC
     local merchantNpc = npcsFolder and npcsFolder:FindFirstChild("MerchantNPC")
     
-    if merchantNpc then
-        local attr = merchantNpc:GetAttribute("MerchantName")
-        local childVal = merchantNpc:FindFirstChild("MerchantName")
-        
-        if attr then
-            merchantName = tostring(attr)
-        elseif childVal and childVal:IsA("StringValue") then
-            merchantName = childVal.Value
-        end
-    end
-    
-    -- [NOVIDADE]: Se não achou nome do merchant, simplesmente encerra a função aqui!
-    -- Isso evita varrer itens velhos e enviar webhook atoa pro Discord.
-    if merchantName == "Unknown" then
+    -- Se o modelo não existir no mapa, o merchant não está lá. Aborta!
+    if not merchantNpc then
         return
     end
     
-    -- A partir daqui, só roda se ele achar o Merchant com um nome válido (Ativo)
+    -- Se chegou até aqui, o modelo existe! Tenta pegar o nome dele (ou usa um genérico se não tiver)
+    local merchantName = "Wandering Merchant"
+    local attr = merchantNpc:GetAttribute("MerchantName")
+    local childVal = merchantNpc:FindFirstChild("MerchantName")
+    
+    if attr then
+        merchantName = tostring(attr)
+    elseif childVal and childVal:IsA("StringValue") then
+        merchantName = childVal.Value
+    end
+    
     local itemsList = {}
     local mentions = {}
     local readyToBuyMerchant = {} 
