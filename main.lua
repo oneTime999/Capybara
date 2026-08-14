@@ -341,71 +341,22 @@ local function findMerchantNpcAndName()
 
     local merchantNpc = npcs:FindFirstChild("MerchantNPC")
 
-    if not merchantNpc then
-        for _, npc in ipairs(npcs:GetChildren()) do
-            local lowerName = string.lower(npc.Name)
-            if string.find(lowerName, "merchant", 1, true) then
-                merchantNpc = npc
-                break
-            end
-        end
-    end
-
     if not merchantNpc or not merchantNpc:IsDescendantOf(Workspace) then
         return nil, nil
     end
 
-    local merchantName = trimText(merchantNpc:GetAttribute("MerchantName"))
+    -- MerchantName itself is the spawn marker.
+    -- Do not use attributes/model names/fallbacks here because they can stay cached
+    -- after the real Merchant has already despawned.
+    local merchantNameObject = merchantNpc:FindFirstChild("MerchantName", true)
 
-    local nameCandidates = {
-        "MerchantName",
-        "NPCName",
-        "DisplayName",
-        "NameLabel",
-        "Title"
-    }
-
-    if not merchantName then
-        for _, candidateName in ipairs(nameCandidates) do
-            local valueObject = merchantNpc:FindFirstChild(candidateName, true)
-            local value = readTextObject(valueObject)
-
-            if value and not isGenericMerchantName(value) then
-                merchantName = value
-                break
-            end
-        end
+    if not merchantNameObject or not merchantNameObject:IsDescendantOf(merchantNpc) then
+        return nil, nil
     end
 
-    if not merchantName then
-        for _, descendant in ipairs(merchantNpc:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                local value = trimText(descendant.ObjectText)
-                if value and not isGenericMerchantName(value) then
-                    merchantName = value
-                    break
-                end
-            end
-        end
-    end
+    local merchantName = readTextObject(merchantNameObject)
 
-    if not merchantName and not isGenericMerchantName(merchantNpc.Name) then
-        merchantName = trimText(merchantNpc.Name)
-    end
-
-    if not merchantName then
-        for _, descendant in ipairs(merchantNpc:GetDescendants()) do
-            if descendant:IsA("Model") and not isGenericMerchantName(descendant.Name) then
-                local lowerName = string.lower(descendant.Name)
-                if string.find(lowerName, "merchant", 1, true) then
-                    merchantName = trimText(descendant.Name)
-                    break
-                end
-            end
-        end
-    end
-
-    if not merchantName then
+    if not merchantName or isGenericMerchantName(merchantName) then
         return nil, nil
     end
 
@@ -523,10 +474,19 @@ local function sendMerchantWebhook()
         end
     end
 
-    local itemsDescription = table.concat(itemsList, "\n")
-    if itemsDescription == "" then
-        itemsDescription = "*No items currently available.*"
+    -- If there are no real Merchant items, do not send a stale Merchant webhook.
+    -- This also protects against the UI keeping the previous Merchant name after despawn.
+    if #itemsList == 0 then
+        return
     end
+
+    -- Final spawn check immediately before building/sending the webhook.
+    merchantNpc, merchantName = findMerchantNpcAndName()
+    if not merchantNpc or not merchantName then
+        return
+    end
+
+    local itemsDescription = table.concat(itemsList, "\n")
 
     local uniqueMentions = ""
     local seen = {}
@@ -590,7 +550,7 @@ task.spawn(function()
     npcs.DescendantAdded:Connect(function(descendant)
         local lowerName = string.lower(descendant.Name)
 
-        if lowerName == "merchantname" or string.find(lowerName, "merchant", 1, true) then
+        if lowerName == "merchantname" or lowerName == "merchantnpc" then
             if debounce then
                 return
             end
