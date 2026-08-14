@@ -330,37 +330,70 @@ local function isGenericMerchantName(name)
         or lowerName == "merchant shop"
 end
 
-local function findMerchantNpcAndName()
+local function findMerchantNpc()
     local world = Workspace:FindFirstChild("World")
     local map = world and world:FindFirstChild("Map")
     local npcs = map and map:FindFirstChild("NPCs")
 
     if not npcs then
-        return nil, nil
+        return nil
     end
 
     local merchantNpc = npcs:FindFirstChild("MerchantNPC")
 
+    if merchantNpc and merchantNpc:IsDescendantOf(Workspace) then
+        return merchantNpc
+    end
+
+    return nil
+end
+
+local function getMerchantName(merchantNpc)
     if not merchantNpc or not merchantNpc:IsDescendantOf(Workspace) then
-        return nil, nil
+        return nil
     end
 
-    -- MerchantName itself is the spawn marker.
-    -- Do not use attributes/model names/fallbacks here because they can stay cached
-    -- after the real Merchant has already despawned.
+    local attr = trimText(merchantNpc:GetAttribute("MerchantName"))
+    if attr and not isGenericMerchantName(attr) then
+        return attr
+    end
+
     local merchantNameObject = merchantNpc:FindFirstChild("MerchantName", true)
-
-    if not merchantNameObject or not merchantNameObject:IsDescendantOf(merchantNpc) then
-        return nil, nil
-    end
-
     local merchantName = readTextObject(merchantNameObject)
 
-    if not merchantName or isGenericMerchantName(merchantName) then
-        return nil, nil
+    if merchantName and not isGenericMerchantName(merchantName) then
+        return merchantName
     end
 
-    return merchantNpc, merchantName
+    local nameCandidates = {
+        "NPCName",
+        "DisplayName",
+        "NameLabel",
+        "Title"
+    }
+
+    for _, candidateName in ipairs(nameCandidates) do
+        local object = merchantNpc:FindFirstChild(candidateName, true)
+        local value = readTextObject(object)
+
+        if value and not isGenericMerchantName(value) then
+            return value
+        end
+    end
+
+    for _, descendant in ipairs(merchantNpc:GetDescendants()) do
+        if descendant:IsA("ProximityPrompt") then
+            local value = trimText(descendant.ObjectText)
+
+            if value and not isGenericMerchantName(value) then
+                return value
+            end
+        end
+    end
+
+    -- The NPC model is the source of truth for whether the Merchant is spawned.
+    -- A missing display name must never make an active Merchant look despawned.
+    return "Merchant"
 end
 
 local function getMerchantItemName(item)
@@ -395,16 +428,21 @@ local function getMerchantItemName(item)
     return nil
 end
 
-local function waitForMerchantList(timeoutSeconds)
+local function waitForMerchantList(merchantNpc, timeoutSeconds)
     local deadline = os.clock() + timeoutSeconds
 
     repeat
+        if not merchantNpc or not merchantNpc:IsDescendantOf(Workspace) then
+            return nil
+        end
+
         local list = MerchantShop:FindFirstChild("List")
 
         if list then
             for _, item in ipairs(list:GetChildren()) do
                 if item:IsA("GuiObject") then
                     local stock = item:FindFirstChild("Stock", true)
+
                     if stock and (stock:IsA("TextLabel") or stock:IsA("TextButton") or stock:IsA("TextBox")) then
                         return list
                     end
@@ -419,23 +457,21 @@ local function waitForMerchantList(timeoutSeconds)
 end
 
 local function sendMerchantWebhook()
-    local merchantNpc, merchantName = findMerchantNpcAndName()
+    local merchantNpc = findMerchantNpc()
 
-    -- No real Merchant model/name = Merchant is not spawned.
-    if not merchantNpc or not merchantName then
-        return
+    -- MerchantNPC is the only spawn check.
+    if not merchantNpc then
+        return false
     end
 
-    -- The model can disappear while the UI is loading.
-    local merchantShopList = waitForMerchantList(15)
-    if not merchantShopList or not merchantNpc:IsDescendantOf(Workspace) then
-        return
-    end
+    local merchantName = getMerchantName(merchantNpc)
 
-    -- Re-check the name after the UI finishes loading.
-    merchantNpc, merchantName = findMerchantNpcAndName()
-    if not merchantNpc or not merchantName then
-        return
+    -- Wait for the Merchant stock UI while continuously confirming
+    -- that the actual MerchantNPC still exists in Workspace.
+    local merchantShopList = waitForMerchantList(merchantNpc, 15)
+
+    if not merchantShopList or not findMerchantNpc() then
+        return false
     end
 
     local itemsList = {}
@@ -474,17 +510,19 @@ local function sendMerchantWebhook()
         end
     end
 
-    -- If there are no real Merchant items, do not send a stale Merchant webhook.
-    -- This also protects against the UI keeping the previous Merchant name after despawn.
-    if #itemsList == 0 then
-        return
+    -- If MerchantNPC disappeared while reading the UI, never send stale data.
+    merchantNpc = findMerchantNpc()
+    if not merchantNpc then
+        return false
     end
 
-    -- Final spawn check immediately before building/sending the webhook.
-    merchantNpc, merchantName = findMerchantNpcAndName()
-    if not merchantNpc or not merchantName then
-        return
+    -- The Merchant is active but the UI may still be populating.
+    -- Returning false makes the monitor retry instead of marking this spawn as handled.
+    if #itemsList == 0 then
+        return false
     end
+
+    merchantName = getMerchantName(merchantNpc) or "Merchant"
 
     local itemsDescription = table.concat(itemsList, "\n")
 
@@ -496,6 +534,11 @@ local function sendMerchantWebhook()
             uniqueMentions = uniqueMentions .. mention .. " "
             seen[mention] = true
         end
+    end
+
+    -- One final model check immediately before the HTTP request.
+    if not findMerchantNpc() then
+        return false
     end
 
     local data = {
@@ -514,10 +557,17 @@ local function sendMerchantWebhook()
 
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
 
+    -- Buy only while the real MerchantNPC is still spawned.
     for _, itemName in ipairs(readyToBuyMerchant) do
+        if not findMerchantNpc() then
+            break
+        end
+
         BuyMerchantItem:FireServer(itemName)
         task.wait(0.5)
     end
+
+    return true
 end
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
@@ -538,32 +588,34 @@ end)
 task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
-task.spawn(sendMerchantWebhook)
 
+-- Merchant has its own state monitor.
+-- It sends/buys once per spawn and resets as soon as MerchantNPC disappears.
 task.spawn(function()
-    local world = Workspace:WaitForChild("World")
-    local map = world:WaitForChild("Map")
-    local npcs = map:WaitForChild("NPCs")
+    local merchantWasSpawned = false
+    local handledThisSpawn = false
 
-    local debounce = false
+    while task.wait(1) do
+        local merchantNpc = findMerchantNpc()
 
-    npcs.DescendantAdded:Connect(function(descendant)
-        local lowerName = string.lower(descendant.Name)
-
-        if lowerName == "merchantname" or lowerName == "merchantnpc" then
-            if debounce then
-                return
+        if merchantNpc then
+            if not merchantWasSpawned then
+                merchantWasSpawned = true
+                handledThisSpawn = false
             end
 
-            debounce = true
+            if not handledThisSpawn then
+                local success = sendMerchantWebhook()
 
-            task.delay(1, function()
-                sendMerchantWebhook()
-                task.wait(2)
-                debounce = false
-            end)
+                if success then
+                    handledThisSpawn = true
+                end
+            end
+        else
+            merchantWasSpawned = false
+            handledThisSpawn = false
         end
-    end)
+    end
 end)
 
 local lastMinute = -1
@@ -579,10 +631,6 @@ task.spawn(function()
                 task.spawn(sendEggWebhook)
                 task.spawn(sendGearWebhook)
                 task.spawn(sendWeatherWebhook)
-                
-                if currentMinute % 10 == 0 then
-                    task.spawn(sendMerchantWebhook)
-                end
             end
         end
     end
