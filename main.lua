@@ -288,74 +288,256 @@ local function sendWeatherWebhook()
     sendWebhookRequest(WEATHER_WEBHOOK, data)
 end
 
-local function sendMerchantWebhook()
+local function trimText(value)
+    if value == nil then
+        return nil
+    end
+
+    local text = tostring(value):match("^%s*(.-)%s*$")
+    if text == "" then
+        return nil
+    end
+
+    return text
+end
+
+local function readTextObject(object)
+    if not object then
+        return nil
+    end
+
+    if object:IsA("StringValue") then
+        return trimText(object.Value)
+    end
+
+    if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+        return trimText(object.Text)
+    end
+
+    return nil
+end
+
+local function isGenericMerchantName(name)
+    if not name then
+        return true
+    end
+
+    local lowerName = string.lower(trimText(name) or "")
+    return lowerName == ""
+        or lowerName == "merchant"
+        or lowerName == "merchantnpc"
+        or lowerName == "merchant npc"
+        or lowerName == "merchant shop"
+end
+
+local function findMerchantNpcAndName()
     local world = Workspace:FindFirstChild("World")
     local map = world and world:FindFirstChild("Map")
     local npcs = map and map:FindFirstChild("NPCs")
-    
-    local merchantNpc = npcs and npcs:FindFirstChild("MerchantNPC")
+
+    if not npcs then
+        return nil, nil
+    end
+
+    local merchantNpc = npcs:FindFirstChild("MerchantNPC")
+
     if not merchantNpc then
+        for _, npc in ipairs(npcs:GetChildren()) do
+            local lowerName = string.lower(npc.Name)
+            if string.find(lowerName, "merchant", 1, true) then
+                merchantNpc = npc
+                break
+            end
+        end
+    end
+
+    if not merchantNpc or not merchantNpc:IsDescendantOf(Workspace) then
+        return nil, nil
+    end
+
+    local merchantName = trimText(merchantNpc:GetAttribute("MerchantName"))
+
+    local nameCandidates = {
+        "MerchantName",
+        "NPCName",
+        "DisplayName",
+        "NameLabel",
+        "Title"
+    }
+
+    if not merchantName then
+        for _, candidateName in ipairs(nameCandidates) do
+            local valueObject = merchantNpc:FindFirstChild(candidateName, true)
+            local value = readTextObject(valueObject)
+
+            if value and not isGenericMerchantName(value) then
+                merchantName = value
+                break
+            end
+        end
+    end
+
+    if not merchantName then
+        for _, descendant in ipairs(merchantNpc:GetDescendants()) do
+            if descendant:IsA("ProximityPrompt") then
+                local value = trimText(descendant.ObjectText)
+                if value and not isGenericMerchantName(value) then
+                    merchantName = value
+                    break
+                end
+            end
+        end
+    end
+
+    if not merchantName and not isGenericMerchantName(merchantNpc.Name) then
+        merchantName = trimText(merchantNpc.Name)
+    end
+
+    if not merchantName then
+        for _, descendant in ipairs(merchantNpc:GetDescendants()) do
+            if descendant:IsA("Model") and not isGenericMerchantName(descendant.Name) then
+                local lowerName = string.lower(descendant.Name)
+                if string.find(lowerName, "merchant", 1, true) then
+                    merchantName = trimText(descendant.Name)
+                    break
+                end
+            end
+        end
+    end
+
+    if not merchantName then
+        return nil, nil
+    end
+
+    return merchantNpc, merchantName
+end
+
+local function getMerchantItemName(item)
+    local itemName = trimText(item.Name)
+
+    local genericNames = {
+        ["item"] = true,
+        ["template"] = true,
+        ["frame"] = true,
+        ["slot"] = true
+    }
+
+    if itemName and not genericNames[string.lower(itemName)] and not tonumber(itemName) then
+        return itemName
+    end
+
+    local candidates = {
+        "ItemName",
+        "Name",
+        "Title"
+    }
+
+    for _, candidateName in ipairs(candidates) do
+        local label = item:FindFirstChild(candidateName, true)
+        local value = readTextObject(label)
+
+        if value then
+            return value
+        end
+    end
+
+    return nil
+end
+
+local function waitForMerchantList(timeoutSeconds)
+    local deadline = os.clock() + timeoutSeconds
+
+    repeat
+        local list = MerchantShop:FindFirstChild("List")
+
+        if list then
+            for _, item in ipairs(list:GetChildren()) do
+                if item:IsA("GuiObject") then
+                    local stock = item:FindFirstChild("Stock", true)
+                    if stock and (stock:IsA("TextLabel") or stock:IsA("TextButton") or stock:IsA("TextBox")) then
+                        return list
+                    end
+                end
+            end
+        end
+
+        task.wait(0.25)
+    until os.clock() >= deadline
+
+    return nil
+end
+
+local function sendMerchantWebhook()
+    local merchantNpc, merchantName = findMerchantNpcAndName()
+
+    -- No real Merchant model/name = Merchant is not spawned.
+    if not merchantNpc or not merchantName then
         return
     end
-    
-    -- Aguarda 3 segundos para dar tempo do UI do Merchant carregar os itens por completo
-    task.wait(3)
-    
-    local merchantName = "Wandering Merchant"
-    local attr = merchantNpc:GetAttribute("MerchantName")
-    local childVal = merchantNpc:FindFirstChild("MerchantName")
-    
-    if attr then
-        merchantName = tostring(attr)
-    elseif childVal and childVal:IsA("StringValue") then
-        merchantName = childVal.Value
+
+    -- The model can disappear while the UI is loading.
+    local merchantShopList = waitForMerchantList(15)
+    if not merchantShopList or not merchantNpc:IsDescendantOf(Workspace) then
+        return
     end
-    
+
+    -- Re-check the name after the UI finishes loading.
+    merchantNpc, merchantName = findMerchantNpcAndName()
+    if not merchantNpc or not merchantName then
+        return
+    end
+
     local itemsList = {}
     local mentions = {}
-    local readyToBuyMerchant = {} 
-    
-    local merchantShopList = MerchantShop:FindFirstChild("List")
-    if merchantShopList then
-        for _, item in ipairs(merchantShopList:GetChildren()) do
-            if item:IsA("Frame") or item:IsA("TextLabel") or item:IsA("ImageLabel") then
-                local itemName = item.Name
-                if itemName ~= "UIListLayout" and itemName ~= "UIPadding" then
-                    local stockLabel = item:FindFirstChild("Stock")
-                    local stockText = stockLabel and stockLabel.Text or "Unknown"
-                    
-                    if stockText ~= "Unknown" and not string.find(string.upper(stockText), "NO STOCK") then
-                        local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
-                        
-                        table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
-                        
-                        if table.find(merchantItemsToBuy, itemName) then
-                            table.insert(readyToBuyMerchant, itemName)
-                        end
-                        
-                        if merchantItemRoles[itemName] then
-                            table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
-                        end
+    local readyToBuyMerchant = {}
+
+    for _, item in ipairs(merchantShopList:GetChildren()) do
+        if item:IsA("GuiObject") then
+            local stockLabel = item:FindFirstChild("Stock", true)
+
+            if stockLabel and (stockLabel:IsA("TextLabel") or stockLabel:IsA("TextButton") or stockLabel:IsA("TextBox")) then
+                local stockText = trimText(stockLabel.Text)
+                local itemName = getMerchantItemName(item)
+
+                if itemName
+                    and stockText
+                    and not string.find(string.upper(stockText), "NO STOCK", 1, true)
+                then
+                    local cleanStock = string.match(stockText, "x%d+")
+                        or string.gsub(stockText, "\n", " ")
+
+                    table.insert(
+                        itemsList,
+                        "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                    )
+
+                    if table.find(merchantItemsToBuy, itemName) then
+                        table.insert(readyToBuyMerchant, itemName)
+                    end
+
+                    if merchantItemRoles[itemName] then
+                        table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
                     end
                 end
             end
         end
     end
-    
+
     local itemsDescription = table.concat(itemsList, "\n")
     if itemsDescription == "" then
         itemsDescription = "*No items currently available.*"
     end
-    
+
     local uniqueMentions = ""
     local seen = {}
-    for _, m in ipairs(mentions) do
-        if not seen[m] then
-            uniqueMentions = uniqueMentions .. m .. " "
-            seen[m] = true
+
+    for _, mention in ipairs(mentions) do
+        if not seen[mention] then
+            uniqueMentions = uniqueMentions .. mention .. " "
+            seen[mention] = true
         end
     end
-    
+
     local data = {
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
@@ -369,9 +551,9 @@ local function sendMerchantWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
+
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
-    
+
     for _, itemName in ipairs(readyToBuyMerchant) do
         BuyMerchantItem:FireServer(itemName)
         task.wait(0.5)
@@ -397,6 +579,32 @@ task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
 task.spawn(sendMerchantWebhook)
+
+task.spawn(function()
+    local world = Workspace:WaitForChild("World")
+    local map = world:WaitForChild("Map")
+    local npcs = map:WaitForChild("NPCs")
+
+    local debounce = false
+
+    npcs.DescendantAdded:Connect(function(descendant)
+        local lowerName = string.lower(descendant.Name)
+
+        if lowerName == "merchantname" or string.find(lowerName, "merchant", 1, true) then
+            if debounce then
+                return
+            end
+
+            debounce = true
+
+            task.delay(1, function()
+                sendMerchantWebhook()
+                task.wait(2)
+                debounce = false
+            end)
+        end
+    end)
+end)
 
 local lastMinute = -1
 
