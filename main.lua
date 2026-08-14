@@ -1,4 +1,4 @@
-         local Players = game:GetService("Players")
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local Workspace = game:GetService("Workspace")
@@ -143,6 +143,7 @@ local function sendWebhookRequest(url, data)
 end
 
 local function sendEggWebhook()
+    task.wait(3)
     local descriptionLines = {}
     local mentions = {}
     local readyToBuyEggs = {} 
@@ -205,6 +206,7 @@ local function sendEggWebhook()
 end
 
 local function sendGearWebhook()
+    task.wait(3)
     local descriptionLines = {}
     local readyToBuyGears = {}
 
@@ -447,6 +449,7 @@ local function waitForMerchantList(merchantNpc, timeoutSeconds)
 end
 
 local function sendMerchantWebhook()
+    task.wait(3)
     local merchantNpc = findMerchantNpc()
 
     -- MerchantNPC is the only spawn check.
