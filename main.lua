@@ -45,6 +45,7 @@ local validWeathers = {
 local weatherMutations = {
     ["Thunder"] = "Shocked",
     ["Zen"] = "Tranquil",
+    ["Night"] = "Moonlight",
     ["Snow"] = "Chilly",
     ["Blizzard"] = "Permafrost",
     ["Heatwave"] = "Toasty",
