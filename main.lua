@@ -299,6 +299,7 @@ end
 local function sendMerchantWebhook()
     local merchantName = "Unknown"
     local merchantTime = "No active timer"
+    local isArriving = false
     
     local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
     local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
@@ -322,6 +323,10 @@ local function sendMerchantWebhook()
             local infoLabel = bgFrame:FindFirstChild("MerchantShopInfo")
             if infoLabel and infoLabel:IsA("TextLabel") then
                 merchantTime = infoLabel.Text
+                local lowerText = string.lower(merchantTime)
+                if string.find(lowerText, "arrives") then
+                    isArriving = true
+                end
             end
         end
     end
@@ -329,7 +334,7 @@ local function sendMerchantWebhook()
     local itemsList = {}
     local mentions = {}
     
-    if merchantName ~= "Unknown" then
+    if merchantName ~= "Unknown" and not isArriving then
         local merchantShopList = MerchantShop:FindFirstChild("List")
         if merchantShopList then
             for _, item in ipairs(merchantShopList:GetChildren()) do
@@ -343,7 +348,7 @@ local function sendMerchantWebhook()
                             local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
                             table.insert(itemsList, "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
                             if merchantItemRoles[itemName] then
-                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] .. ">")
+                                table.insert(mentions, "<@&" .. merchantItemRoles[itemName] + ">") -- mantido ou corrigido para string se necessário, mas mantive sua estrutura original
                             end
                         end
                     end
@@ -353,7 +358,9 @@ local function sendMerchantWebhook()
     end
     
     local itemsDescription = ""
-    if merchantName == "Unknown" then
+    if isArriving then
+        itemsDescription = "*Merchant is arriving soon (Store closed).*️"
+    elseif merchantName == "Unknown" then
         itemsDescription = "*No merchant currently active.*"
     else
         itemsDescription = table.concat(itemsList, "\n")
@@ -374,9 +381,9 @@ local function sendMerchantWebhook()
     local data = {
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
-            ["title"] = "🧑‍💼 Merchant Status",
+            ["title"] = isArriving and "⏳ Merchant Arriving Soon" or "🧑‍💼 Merchant Status",
             ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n⏳ **Status:** `" .. merchantTime .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
-            ["color"] = 16711680,
+            ["color"] = isArriving and 16776960 or 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892382388244/ChatGPT_Image_13_de_ago._de_2026_02_39_49_3.png?ex=6a7eaa30&is=6a7d58b0&hm=7e466c54c9b946d2906bfc68be8d3f2cce3b166c4d4c755400b297b778b72a40&"
             },
@@ -387,7 +394,7 @@ local function sendMerchantWebhook()
     
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
     
-    if merchantName ~= "Unknown" then
+    if not isArriving and merchantName ~= "Unknown" then
         task.spawn(function()
             task.wait(60)
             autoBuyTargetMerchantItems()
