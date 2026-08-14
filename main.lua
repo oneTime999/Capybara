@@ -293,15 +293,14 @@ local function sendMerchantWebhook()
     local map = world and world:FindFirstChild("Map")
     local npcs = map and map:FindFirstChild("NPCs")
     
-    -- Checa se o modelo MerchantNPC existe exatamente onde você especificou
     local merchantNpc = npcs and npcs:FindFirstChild("MerchantNPC")
-    
-    -- Se não existir (desativado), a função para imediatamente sem erros
     if not merchantNpc then
         return
     end
     
-    -- Se existir (ativo), pega o nome se houver ou usa o padrão
+    -- Aguarda 3 segundos para dar tempo do UI do Merchant carregar os itens por completo
+    task.wait(3)
+    
     local merchantName = "Wandering Merchant"
     local attr = merchantNpc:GetAttribute("MerchantName")
     local childVal = merchantNpc:FindFirstChild("MerchantName")
@@ -375,6 +374,7 @@ local function sendMerchantWebhook()
     
     for _, itemName in ipairs(readyToBuyMerchant) do
         BuyMerchantItem:FireServer(itemName)
+        task.wait(0.5)
     end
 end
 
