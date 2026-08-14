@@ -38,14 +38,15 @@ local emojiMap = {
 }
 
 local validWeathers = {
-    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
+    "Night", "Meteor Shower", "Rain", "Thunder", "Zen", "Snowy", "Snow",
+    "Blizzard", "Heatwave", "Red Sun", "Glitch", "Taco Rain", "Reverse Sun"
 }
 
 local weatherMutations = {
     ["Thunder"] = "Shocked",
     ["Zen"] = "Tranquil",
-    ["Night"] = "Moonlight",
     ["Snowy"] = "Chilly",
+    ["Snow"] = "Chilly",
     ["Blizzard"] = "Permafrost",
     ["Heatwave"] = "Toasty",
     ["Glitch"] = "Glitched",
@@ -55,14 +56,12 @@ local weatherMutations = {
 }
 
 local weatherRoles = {
-    ["Chilly"] = "1537689307614027958",
     ["Glitched"] = "1537221727535370321",
     ["Toasty"] = "1537221683667279914",
     ["Permafrost"] = "1537221644391551066",
     ["Tranquil"] = "1537221598313058304",
     ["Shocked"] = "1537221553031221328",
     ["Celestial"] = "1537231135552311358",
-    ["Moonlight"] = "1537502984450084885",
     ["+25% Faster Plant Spawnrate"] = "1537231219572473928",
     ["Scorched"] = "1537231281731928146"
 }
@@ -119,7 +118,7 @@ local Root = MainGui:WaitForChild("Root")
 local Frames = Root:WaitForChild("Frames")
 local EggShopList = Frames:WaitForChild("EggShop"):WaitForChild("List")
 local GearShopList = Frames:WaitForChild("GearShop"):WaitForChild("List")
-local WeatherIconsFolder = Root:WaitForChild("WeatherIcons")
+local ActiveWeathers = ReplicatedStorage:WaitForChild("ServerInfo"):WaitForChild("ACTIVE_WEATHERS")
 local MerchantShop = Frames:WaitForChild("MerchantShop")
 
 local function getEmojiForEgg(eggName)
@@ -262,41 +261,89 @@ local function sendGearWebhook()
     end
 end
 
+local function getActiveWeatherNames()
+    local activeNames = {}
+    local seen = {}
+
+    local function addWeatherName(name)
+        if typeof(name) ~= "string" then
+            return
+        end
+
+        name = name:match("^%s*(.-)%s*$")
+
+        if name == "" or seen[name] then
+            return
+        end
+
+        if table.find(validWeathers, name) then
+            seen[name] = true
+            table.insert(activeNames, name)
+        end
+    end
+
+    for _, weatherObject in ipairs(ActiveWeathers:GetChildren()) do
+        addWeatherName(weatherObject.Name)
+
+        if weatherObject:IsA("StringValue") then
+            addWeatherName(weatherObject.Value)
+        end
+    end
+
+    for attributeName, attributeValue in pairs(ActiveWeathers:GetAttributes()) do
+        if attributeValue == true then
+            addWeatherName(attributeName)
+        elseif typeof(attributeValue) == "string" then
+            addWeatherName(attributeValue)
+        end
+    end
+
+    if ActiveWeathers:IsA("StringValue") then
+        addWeatherName(ActiveWeathers.Value)
+    end
+
+    return activeNames
+end
+
 local function sendWeatherWebhook()
+    task.wait(3)
+
     local activeWeathers = {}
     local mentions = {}
-    
-    for _, icon in ipairs(WeatherIconsFolder:GetChildren()) do
-        if table.find(validWeathers, icon.Name) then
-            local mutationName = weatherMutations[icon.Name]
-            local displayName = icon.Name
-            local roleKey = icon.Name
-            
-            if mutationName then
-                displayName = icon.Name .. " -> " .. mutationName
-                roleKey = mutationName
-            end
-            
-            table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
-            
-            if weatherRoles[roleKey] then
-                table.insert(mentions, "<@&" .. weatherRoles[roleKey] .. ">")
-            end
+
+    for _, weatherName in ipairs(getActiveWeatherNames()) do
+        local mutationName = weatherMutations[weatherName]
+        local displayName = weatherName
+        local roleKey = weatherName
+
+        if mutationName then
+            displayName = weatherName .. " -> " .. mutationName
+            roleKey = mutationName
+        end
+
+        table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
+
+        if weatherRoles[roleKey] then
+            table.insert(mentions, "<@&" .. weatherRoles[roleKey] .. ">")
         end
     end
-    
+
     local finalDescription = table.concat(activeWeathers, "\n")
-    if finalDescription == "" then finalDescription = "☁️ *No special weather events active.*" end
-    
+
+    if finalDescription == "" then
+        finalDescription = "☁️ *No special weather events active.*"
+    end
+
     local uniqueMentions = ""
     local seen = {}
-    for _, m in ipairs(mentions) do
-        if not seen[m] then
-            uniqueMentions = uniqueMentions .. m .. " "
-            seen[m] = true
+
+    for _, mention in ipairs(mentions) do
+        if not seen[mention] then
+            uniqueMentions = uniqueMentions .. mention .. " "
+            seen[mention] = true
         end
     end
-    
+
     local data = {
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
@@ -310,7 +357,7 @@ local function sendWeatherWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
-    
+
     sendWebhookRequest(WEATHER_WEBHOOK, data)
 end
 
