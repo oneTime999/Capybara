@@ -298,6 +298,8 @@ end
 
 local function sendMerchantWebhook()
     local merchantName = "Unknown"
+    local merchantTime = "No active timer"
+    
     local mapFolder = Workspace:FindFirstChild("World") and Workspace.World:FindFirstChild("Map")
     local npcsFolder = mapFolder and mapFolder:FindFirstChild("NPCs")
     local merchantNpc = npcsFolder and npcsFolder:FindFirstChild("MerchantNPC")
@@ -310,6 +312,17 @@ local function sendMerchantWebhook()
             merchantName = tostring(attr)
         elseif childVal and childVal:IsA("StringValue") then
             merchantName = childVal.Value
+        end
+    end
+    
+    local detailsFrame = MerchantShop:FindFirstChild("Details")
+    if detailsFrame then
+        local bgFrame = detailsFrame:FindFirstChild("Background")
+        if bgFrame then
+            local infoLabel = bgFrame:FindFirstChild("MerchantShopInfo")
+            if infoLabel and infoLabel:IsA("TextLabel") then
+                merchantTime = infoLabel.Text
+            end
         end
     end
     
@@ -362,7 +375,7 @@ local function sendMerchantWebhook()
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
             ["title"] = "🧑‍💼 Merchant Status",
-            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
+            ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n⏳ **Status:** `" .. merchantTime .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
             ["color"] = 16711680,
             ["image"] = {
                 ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892382388244/ChatGPT_Image_13_de_ago._de_2026_02_39_49_3.png?ex=6a7eaa30&is=6a7d58b0&hm=7e466c54c9b946d2906bfc68be8d3f2cce3b166c4d4c755400b297b778b72a40&"
@@ -374,10 +387,12 @@ local function sendMerchantWebhook()
     
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
     
-    task.spawn(function()
-        task.wait(60)
-        autoBuyTargetMerchantItems()
-    end)
+    if merchantName ~= "Unknown" then
+        task.spawn(function()
+            task.wait(60)
+            autoBuyTargetMerchantItems()
+        end)
+    end
 end
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
@@ -400,21 +415,21 @@ task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
 task.spawn(sendMerchantWebhook)
 
-local lastMinute5 = -1
+local lastMinute = -1
 
 task.spawn(function()
     while task.wait(1) do
         local currentMinute = tonumber(os.date("!%M", os.time()))
         
-        if currentMinute % 5 == 0 then
-            if currentMinute ~= lastMinute5 then
-                lastMinute5 = currentMinute
+        if currentMinute ~= lastMinute then
+            if currentMinute % 5 == 0 then
+                lastMinute = currentMinute
                 
                 task.spawn(sendEggWebhook)
                 task.spawn(sendGearWebhook)
                 task.spawn(sendWeatherWebhook)
                 
-                if currentMinute % 20 == 0 then
+                if currentMinute % 10 == 0 then
                     task.spawn(sendMerchantWebhook)
                 end
             end
