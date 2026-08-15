@@ -29,8 +29,8 @@ local roleMap = {
 
 local specialStockRoles = {
     ["Mega Scroll"] = "1538200480222548008",
-    ["Robot Capybara Mk2"] = "1538200407761752064",
-    ["Robot Seed Plants"] = "1538200341877628979"
+    ["Robot Capybara MkII Egg"] = "1538200407761752064",
+    ["Robot Seed Pack"] = "1538200341877628979"
 }
 
 local emojiMap = {
@@ -199,7 +199,7 @@ local function sendEggWebhook()
             ["description"] = finalDescription,
             ["color"] = 16711680,
             ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334893397282896/ChatGPT_Image_13_de_ago._de_2026_02_39_49_1.png?ex=6a7eaa30&is=6a7d58b0&hm=8459ab8db1d21cbff1f8aedda35902f521a524c822933c87afcfc5c49f714d89&"
+                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538215142163095582/ChatGPT_Image_15_de_ago._de_2026_12_53_52_1.png?ex=6a81ddfc&is=6a808c7c&hm=da9286777481e79c58567258b874c7529f6d6afce7c241e20508235ec9af01d8&"
             },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -250,7 +250,7 @@ local function sendGearWebhook()
             ["description"] = finalDescription,
             ["color"] = 16711680,
             ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334893846204416/ChatGPT_Image_13_de_ago._de_2026_02_39_49_2.png?ex=6a7eaa30&is=6a7d58b0&hm=f217b1699c4a3c3a6ccaf89d57e3f8d48ce48002bf71338b17cc73cfeac36757&"
+                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538214322004828160/ChatGPT_Image_15_de_ago._de_2026_12_53_52_2.png?ex=6a81dd39&is=6a808bb9&hm=8ebaeaf94c73bc35d9c942df849cd9e2a94c71cb871967605122ec6c46a2cbb6&"
             },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -271,32 +271,14 @@ local function sendGearWebhook()
 end
 
 local function getSpecialStockList()
-    local expectedItems = {
-        "Mega Scroll",
-        "Robot Capybara Mk2",
-        "Robot Seed Plants"
-    }
-
-    for _, frame in ipairs(Frames:GetChildren()) do
-        local list = frame:FindFirstChild("List")
-
-        if list then
-            for _, itemName in ipairs(expectedItems) do
-                if list:FindFirstChild(itemName) then
-                    return list
-                end
-            end
-        end
-    end
-
     local framesChildren = Frames:GetChildren()
     local stockFrame = framesChildren[29]
 
-    if stockFrame then
-        return stockFrame:FindFirstChild("List")
+    if not stockFrame then
+        return nil
     end
 
-    return nil
+    return stockFrame:FindFirstChild("List")
 end
 
 local function sendSpecialStockWebhook()
@@ -307,37 +289,54 @@ local function sendSpecialStockWebhook()
         return
     end
 
+    local targetItems = {
+        ["Robot Seed Pack"] = true,
+        ["Mega Scroll"] = true,
+        ["Robot Capybara MkII Egg"] = true
+    }
+
     local descriptionLines = {}
     local mentions = {}
 
     for _, item in ipairs(stockList:GetChildren()) do
+        local titleLabel = item:FindFirstChild("Title")
         local stockLabel = item:FindFirstChild("Stock")
 
-        if stockLabel then
+        if titleLabel and stockLabel then
+            local itemName = titleLabel.Text
             local stockText = stockLabel.Text
 
-            if not string.find(string.upper(stockText), "NO STOCK") then
-                local cleanStock = string.match(stockText, "x%d+")
-                    or string.gsub(stockText, "\n", " ")
-                local itemName = item.Name
+            if targetItems[itemName] then
+                local upperStock = string.upper(stockText)
 
-                table.insert(
-                    descriptionLines,
-                    "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
-                )
+                local isInStock =
+                    string.find(upperStock, "IN STOCK", 1, true)
+                    and not string.find(upperStock, "NO STOCK", 1, true)
 
-                local roleId = specialStockRoles[itemName]
-                if roleId then
-                    table.insert(mentions, "<@&" .. roleId .. ">")
+                if isInStock then
+                    local cleanStock = string.match(stockText, "x%d+")
+                        or string.gsub(stockText, "\n", " ")
+
+                    table.insert(
+                        descriptionLines,
+                        "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                    )
+
+                    local roleId = specialStockRoles[itemName]
+                    if roleId then
+                        table.insert(mentions, "<@&" .. roleId .. ">")
+                    end
                 end
             end
         end
     end
 
-    local finalDescription = table.concat(descriptionLines, "\n")
-    if finalDescription == "" then
-        finalDescription = "❌ *No special items currently in stock.*"
+    -- If none of the 3 target items are in stock, send nothing.
+    if #descriptionLines == 0 then
+        return
     end
+
+    local finalDescription = table.concat(descriptionLines, "\n")
 
     local uniqueMentions = ""
     local seen = {}
@@ -352,9 +351,12 @@ local function sendSpecialStockWebhook()
     local data = {
         ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
-            ["title"] = "🛒 Special Stock Restock",
+            ["title"] = "🤖 Robot Stock Restock",
             ["description"] = finalDescription,
             ["color"] = 16711680,
+            ["image"] = {
+                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538215036466503740/ChatGPT_Image_15_de_ago._de_2026_12_53_53_5.png?ex=6a81dde3&is=6a808c63&hm=6a7f6f0288857494e4956afac80d904dc18d2dd96e251669a4e507974bf6f81b&"
+            },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
@@ -453,7 +455,7 @@ local function sendWeatherWebhook()
             ["description"] = finalDescription,
             ["color"] = 16711680,
             ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892818604053/ChatGPT_Image_13_de_ago._de_2026_02_39_49_4.png?ex=6a7eaa30&is=6a7d58b0&hm=0fb53641115bf847c2c20b23b6748242ba06ec417c5b04e1f0c7e105fc2ae870&"
+                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538214969340993567/ChatGPT_Image_15_de_ago._de_2026_12_53_53_4.png?ex=6a81ddd3&is=6a808c53&hm=d319b3df412f8762e011b1d291c5a83d8b2a41655b06f45e34e5141d77f71f26&"
             },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
@@ -685,7 +687,7 @@ local function sendMerchantWebhook()
             ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
             ["color"] = 16711680,
             ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1537334892382388244/ChatGPT_Image_13_de_ago._de_2026_02_39_49_3.png?ex=6a7eaa30&is=6a7d58b0&hm=7e466c54c9b946d2906bfc68be8d3f2cce3b166c4d4c755400b297b778b72a40&"
+                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538214896368357499/ChatGPT_Image_15_de_ago._de_2026_12_53_53_3.png?ex=6a81ddc1&is=6a808c41&hm=b453e88db9dd53a469576aeee257ae80db51a9c9411f6e22de1195f06f90f2b6&"
             },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
