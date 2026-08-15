@@ -114,13 +114,7 @@ local merchantItemsToBuy = {
 local targetEggsToBuy = {
     "Angel Capybara Egg",
     "Disco Capybara Egg",
-    "Robot Capybara Egg",
-    "Golem Capybara Egg",
-    "Ghost Capybara Egg",
-    "Magic Capybara Egg",
-    "Archer Capybara Egg",
-    "Alpha Capybara Egg",
-    "Capybara Egg"
+    "Robot Capybara Egg"
 }
 
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
@@ -157,6 +151,15 @@ local function sendWebhookRequest(url, data)
     })
 end
 
+local function getStockAmount(stockText)
+    if typeof(stockText) ~= "string" then
+        return 1
+    end
+
+    local amount = tonumber(string.match(stockText, "[xX](%d+)"))
+    return amount and math.max(1, amount) or 1
+end
+
 local function sendEggWebhook()
     task.wait(3)
     local descriptionLines = {}
@@ -175,7 +178,10 @@ local function sendEggWebhook()
                 table.insert(descriptionLines, eggEmoji .. " **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
                 
                 if table.find(targetEggsToBuy, item.Name) then
-                    table.insert(readyToBuyEggs, item.Name)
+                    table.insert(readyToBuyEggs, {
+                        name = item.Name,
+                        amount = getStockAmount(stockText)
+                    })
                 end
                 
                 for key, roleId in pairs(roleMap) do
@@ -215,8 +221,11 @@ local function sendEggWebhook()
     
     sendWebhookRequest(EGG_WEBHOOK, data)
     
-    for _, eggName in ipairs(readyToBuyEggs) do
-        BuyItem:FireServer(eggName)
+    for _, eggData in ipairs(readyToBuyEggs) do
+        for _ = 1, eggData.amount do
+            BuyItem:FireServer(eggData.name)
+            task.wait(0.15)
+        end
     end
 end
 
@@ -240,7 +249,10 @@ local function sendGearWebhook()
                     "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
                 )
 
-                table.insert(readyToBuyGears, item.Name)
+                table.insert(readyToBuyGears, {
+                    name = item.Name,
+                    amount = getStockAmount(stockText)
+                })
             end
         end
     end
@@ -266,14 +278,16 @@ local function sendGearWebhook()
 
     sendWebhookRequest(GEAR_WEBHOOK, data)
 
-    for _, gearName in ipairs(readyToBuyGears) do
-        local args = {
-            [1] = gearName,
-            n = 1,
-        }
+    for _, gearData in ipairs(readyToBuyGears) do
+        for _ = 1, gearData.amount do
+            local args = {
+                [1] = gearData.name,
+                n = 1,
+            }
 
-        BuyItem:FireServer(unpack(args, 1, args.n or #args))
-        task.wait(0.5)
+            BuyItem:FireServer(unpack(args, 1, args.n or #args))
+            task.wait(0.15)
+        end
     end
 end
 
@@ -646,7 +660,10 @@ local function sendMerchantWebhook()
                 )
 
                 if table.find(merchantItemsToBuy, itemName) then
-                    table.insert(readyToBuyMerchant, itemName)
+                    table.insert(readyToBuyMerchant, {
+                        name = itemName,
+                        amount = getStockAmount(stockText)
+                    })
                 end
 
                 if merchantItemRoles[itemName] then
@@ -704,13 +721,19 @@ local function sendMerchantWebhook()
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
 
     -- Buy only while the real MerchantNPC is still spawned.
-    for _, itemName in ipairs(readyToBuyMerchant) do
+    for _, itemData in ipairs(readyToBuyMerchant) do
+        for _ = 1, itemData.amount do
+            if not findMerchantNpc() then
+                break
+            end
+
+            BuyMerchantItem:FireServer(itemData.name)
+            task.wait(0.15)
+        end
+
         if not findMerchantNpc() then
             break
         end
-
-        BuyMerchantItem:FireServer(itemName)
-        task.wait(0.5)
     end
 
     return true
