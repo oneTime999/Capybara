@@ -113,7 +113,14 @@ local merchantItemsToBuy = {
 
 local targetEggsToBuy = {
     "Angel Capybara Egg",
-    "Disco Capybara Egg"
+    "Disco Capybara Egg",
+    "Robot Capybara Egg",
+    "Golem Capybara Egg",
+    "Ghost Capybara Egg",
+    "Magic Capybara Egg",
+    "Archer Capybara Egg",
+    "Alpha Capybara Egg",
+    "Capybara Egg"
 }
 
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
