@@ -17,6 +17,7 @@ local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3Fz
 local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
 local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
+local SPECIAL_STOCK_WEBHOOK = "https://discord.com/api/webhooks/1538200886575235163/egbbDnmt4dJGu7CwcT22Pj2f1YWqo9QtEEdvEJYmG3UFl0vfDGwohAoHKP_goHeN5swx"
 
 local roleMap = {
     ["angel"] = "1535453948662784051",
@@ -24,6 +25,12 @@ local roleMap = {
     ["robot"] = "1535454069500551310",
     ["golem"] = "1535454144381591673",
     ["ghost"] = "1535647401459843134"
+}
+
+local specialStockRoles = {
+    ["Mega Scroll"] = "1538200480222548008",
+    ["Robot Capybara Mk2"] = "1538200407761752064",
+    ["Robot Seed Plants"] = "1538200341877628979"
 }
 
 local emojiMap = {
@@ -261,6 +268,99 @@ local function sendGearWebhook()
         BuyItem:FireServer(unpack(args, 1, args.n or #args))
         task.wait(0.5)
     end
+end
+
+local function getSpecialStockList()
+    local expectedItems = {
+        "Mega Scroll",
+        "Robot Capybara Mk2",
+        "Robot Seed Plants"
+    }
+
+    for _, frame in ipairs(Frames:GetChildren()) do
+        local list = frame:FindFirstChild("List")
+
+        if list then
+            for _, itemName in ipairs(expectedItems) do
+                if list:FindFirstChild(itemName) then
+                    return list
+                end
+            end
+        end
+    end
+
+    local framesChildren = Frames:GetChildren()
+    local stockFrame = framesChildren[29]
+
+    if stockFrame then
+        return stockFrame:FindFirstChild("List")
+    end
+
+    return nil
+end
+
+local function sendSpecialStockWebhook()
+    task.wait(3)
+
+    local stockList = getSpecialStockList()
+    if not stockList then
+        return
+    end
+
+    local descriptionLines = {}
+    local mentions = {}
+
+    for _, item in ipairs(stockList:GetChildren()) do
+        local stockLabel = item:FindFirstChild("Stock")
+
+        if stockLabel then
+            local stockText = stockLabel.Text
+
+            if not string.find(string.upper(stockText), "NO STOCK") then
+                local cleanStock = string.match(stockText, "x%d+")
+                    or string.gsub(stockText, "\n", " ")
+                local itemName = item.Name
+
+                table.insert(
+                    descriptionLines,
+                    "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                )
+
+                local roleId = specialStockRoles[itemName]
+                if roleId then
+                    table.insert(mentions, "<@&" .. roleId .. ">")
+                end
+            end
+        end
+    end
+
+    local finalDescription = table.concat(descriptionLines, "\n")
+    if finalDescription == "" then
+        finalDescription = "❌ *No special items currently in stock.*"
+    end
+
+    local uniqueMentions = ""
+    local seen = {}
+
+    for _, mention in ipairs(mentions) do
+        if not seen[mention] then
+            uniqueMentions = uniqueMentions .. mention .. " "
+            seen[mention] = true
+        end
+    end
+
+    local data = {
+        ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
+        ["embeds"] = {{
+            ["title"] = "🛒 Special Stock Restock",
+            ["description"] = finalDescription,
+            ["color"] = 16711680,
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+
+    sendWebhookRequest(SPECIAL_STOCK_WEBHOOK, data)
 end
 
 local function getActiveWeatherNames()
@@ -625,6 +725,7 @@ end)
 task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
+task.spawn(sendSpecialStockWebhook)
 
 -- Merchant has its own state monitor.
 -- It sends/buys once per spawn and resets as soon as MerchantNPC disappears.
@@ -668,6 +769,10 @@ task.spawn(function()
                 task.spawn(sendEggWebhook)
                 task.spawn(sendGearWebhook)
                 task.spawn(sendWeatherWebhook)
+
+                if currentMinute % 10 == 0 then
+                    task.spawn(sendSpecialStockWebhook)
+                end
             end
         end
     end
