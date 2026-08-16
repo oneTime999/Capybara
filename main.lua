@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
 local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
+local SummonBoss = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SummonBoss")
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -113,8 +114,7 @@ local merchantItemsToBuy = {
 
 local targetEggsToBuy = {
     "Angel Capybara Egg",
-    "Disco Capybara Egg",
-    "Robot Capybara Egg"
+    "Disco Capybara Egg"
 }
 
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
@@ -785,6 +785,34 @@ task.spawn(function()
             merchantWasSpawned = false
             handledThisSpawn = false
         end
+    end
+end)
+
+local function summonCarbot(bossName)
+    local args = {
+        [1] = "Summon",
+        [2] = bossName,
+        n = 2,
+    }
+
+    pcall(function()
+        SummonBoss:InvokeServer(unpack(args, 1, args.n or #args))
+    end)
+end
+
+-- Dr Carbot MkII: every 15 minutes.
+task.spawn(function()
+    while true do
+        task.wait(15 * 60)
+        summonCarbot("Dr Carbot MkII")
+    end
+end)
+
+-- Dr Carbot MkIII: every 1 hour.
+task.spawn(function()
+    while true do
+        task.wait(60 * 60)
+        summonCarbot("Dr Carbot MkIII")
     end
 end)
 
