@@ -390,7 +390,7 @@ local function getActiveWeatherNames()
     local activeNames = {}
     local seen = {}
 
-    local function addWeatherName(name)
+    local function addSingleWeatherName(name)
         if typeof(name) ~= "string" then
             return
         end
@@ -407,24 +407,34 @@ local function getActiveWeatherNames()
         end
     end
 
+    local function addWeatherNames(value)
+        if typeof(value) ~= "string" then
+            return
+        end
+
+        for weatherName in string.gmatch(value, "([^,]+)") do
+            addSingleWeatherName(weatherName)
+        end
+    end
+
     for _, weatherObject in ipairs(ActiveWeathers:GetChildren()) do
-        addWeatherName(weatherObject.Name)
+        addWeatherNames(weatherObject.Name)
 
         if weatherObject:IsA("StringValue") then
-            addWeatherName(weatherObject.Value)
+            addWeatherNames(weatherObject.Value)
         end
     end
 
     for attributeName, attributeValue in pairs(ActiveWeathers:GetAttributes()) do
         if attributeValue == true then
-            addWeatherName(attributeName)
+            addWeatherNames(attributeName)
         elseif typeof(attributeValue) == "string" then
-            addWeatherName(attributeValue)
+            addWeatherNames(attributeValue)
         end
     end
 
     if ActiveWeathers:IsA("StringValue") then
-        addWeatherName(ActiveWeathers.Value)
+        addWeatherNames(ActiveWeathers.Value)
     end
 
     return activeNames
