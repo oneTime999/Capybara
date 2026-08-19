@@ -292,14 +292,52 @@ local function sendGearWebhook()
 end
 
 local function getSpecialStockList()
-    local framesChildren = Frames:GetChildren()
-    local stockFrame = framesChildren[29]
+    local targetItems = {
+        ["Robot Seed Pack"] = true,
+        ["Mega Scroll"] = true,
+        ["Robot Capybara MkII Egg"] = true
+    }
 
-    if not stockFrame then
-        return nil
+    local function isRobotStockList(list)
+        if not list then
+            return false
+        end
+
+        for _, item in ipairs(list:GetChildren()) do
+            local titleLabel = item:FindFirstChild("Title")
+
+            if titleLabel and targetItems[titleLabel.Text] then
+                return true
+            end
+        end
+
+        return false
     end
 
-    return stockFrame:FindFirstChild("List")
+    local framesChildren = Frames:GetChildren()
+
+    -- Current location after the game update.
+    local stockFrame = framesChildren[30]
+
+    if stockFrame then
+        local list = stockFrame:FindFirstChild("List")
+
+        if isRobotStockList(list) then
+            return list
+        end
+    end
+
+    -- Fallback: find the correct Robot Stock automatically if the
+    -- developer changes the Frames order again in a future update.
+    for _, frame in ipairs(framesChildren) do
+        local list = frame:FindFirstChild("List")
+
+        if isRobotStockList(list) then
+            return list
+        end
+    end
+
+    return nil
 end
 
 local function sendSpecialStockWebhook()
