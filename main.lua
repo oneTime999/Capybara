@@ -7,7 +7,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
 local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
-local SummonBoss = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SummonBoss")
 
 Players.LocalPlayer.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -18,21 +17,16 @@ local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3Fz
 local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
 local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
-local SPECIAL_STOCK_WEBHOOK = "https://discord.com/api/webhooks/1538200886575235163/egbbDnmt4dJGu7CwcT22Pj2f1YWqo9QtEEdvEJYmG3UFl0vfDGwohAoHKP_goHeN5swx"
 
 local roleMap = {
     ["angel"] = "1535453948662784051",
     ["disco"] = "1535454015331242004",
     ["robot"] = "1535454069500551310",
     ["golem"] = "1535454144381591673",
-    ["ghost"] = "1535647401459843134"
+    ["ghost"] = "1535647401459843134",
+    ["dragon"] = "1540737633125138522"
 }
 
-local specialStockRoles = {
-    ["Mega Scroll"] = "1538200480222548008",
-    ["Robot Capybara MkII Egg"] = "1538200407761752064",
-    ["Robot Seed Pack"] = "1538200341877628979"
-}
 
 local emojiMap = {
     ["alpha"] = "<:alphacapybaraegg:1535644980805107732>",
@@ -42,7 +36,8 @@ local emojiMap = {
     ["golem"] = "<:golemcapybaraegg:1535645934271205406>",
     ["robot"] = "<:robotcapybaraegg:1535646117264359545>",
     ["disco"] = "<:discocapybaraegg:1535646170473439242>",
-    ["angel"] = "<:angelcapybaraegg:1535646222566555668>"
+    ["angel"] = "<:angelcapybaraegg:1535646222566555668>",
+    ["dragon"] = "<:dragoncapybaraegg:1540737286038360204>"
 }
 
 local validWeathers = {
@@ -114,7 +109,8 @@ local merchantItemsToBuy = {
 
 local targetEggsToBuy = {
     "Angel Capybara Egg",
-    "Disco Capybara Egg"
+    "Disco Capybara Egg",
+    "Dragon Capybara Egg"
 }
 
 local defaultEmoji = "<:capybaraegg:1535644863477846186>"
@@ -249,6 +245,7 @@ local function sendGearWebhook()
                     "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
                 )
 
+                -- Auto-buy all gears in stock, including Trading Ticket.
                 table.insert(readyToBuyGears, {
                     name = item.Name,
                     amount = getStockAmount(stockText)
@@ -289,139 +286,6 @@ local function sendGearWebhook()
             task.wait(0.15)
         end
     end
-end
-
-local function getSpecialStockList()
-    local targetItems = {
-        ["Robot Seed Pack"] = true,
-        ["Mega Scroll"] = true,
-        ["Robot Capybara MkII Egg"] = true
-    }
-
-    local function isRobotStockList(list)
-        if not list then
-            return false
-        end
-
-        for _, item in ipairs(list:GetChildren()) do
-            local titleLabel = item:FindFirstChild("Title")
-
-            if titleLabel and targetItems[titleLabel.Text] then
-                return true
-            end
-        end
-
-        return false
-    end
-
-    local framesChildren = Frames:GetChildren()
-
-    -- Current location after the game update.
-    local stockFrame = framesChildren[30]
-
-    if stockFrame then
-        local list = stockFrame:FindFirstChild("List")
-
-        if isRobotStockList(list) then
-            return list
-        end
-    end
-
-    -- Fallback: find the correct Robot Stock automatically if the
-    -- developer changes the Frames order again in a future update.
-    for _, frame in ipairs(framesChildren) do
-        local list = frame:FindFirstChild("List")
-
-        if isRobotStockList(list) then
-            return list
-        end
-    end
-
-    return nil
-end
-
-local function sendSpecialStockWebhook()
-    task.wait(3)
-
-    local stockList = getSpecialStockList()
-    if not stockList then
-        return
-    end
-
-    local targetItems = {
-        ["Robot Seed Pack"] = true,
-        ["Mega Scroll"] = true,
-        ["Robot Capybara MkII Egg"] = true
-    }
-
-    local descriptionLines = {}
-    local mentions = {}
-
-    for _, item in ipairs(stockList:GetChildren()) do
-        local titleLabel = item:FindFirstChild("Title")
-        local stockLabel = item:FindFirstChild("Stock")
-
-        if titleLabel and stockLabel then
-            local itemName = titleLabel.Text
-            local stockText = stockLabel.Text
-
-            if targetItems[itemName] then
-                local upperStock = string.upper(stockText)
-
-                local isInStock =
-                    string.find(upperStock, "IN STOCK", 1, true)
-                    and not string.find(upperStock, "NO STOCK", 1, true)
-
-                if isInStock then
-                    local cleanStock = string.match(stockText, "x%d+")
-                        or string.gsub(stockText, "\n", " ")
-
-                    table.insert(
-                        descriptionLines,
-                        "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
-                    )
-
-                    local roleId = specialStockRoles[itemName]
-                    if roleId then
-                        table.insert(mentions, "<@&" .. roleId .. ">")
-                    end
-                end
-            end
-        end
-    end
-
-    -- If none of the 3 target items are in stock, send nothing.
-    if #descriptionLines == 0 then
-        return
-    end
-
-    local finalDescription = table.concat(descriptionLines, "\n")
-
-    local uniqueMentions = ""
-    local seen = {}
-
-    for _, mention in ipairs(mentions) do
-        if not seen[mention] then
-            uniqueMentions = uniqueMentions .. mention .. " "
-            seen[mention] = true
-        end
-    end
-
-    local data = {
-        ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
-        ["embeds"] = {{
-            ["title"] = "🤖 Robot Stock Restock",
-            ["description"] = finalDescription,
-            ["color"] = 16711680,
-            ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538215036466503740/ChatGPT_Image_15_de_ago._de_2026_12_53_53_5.png?ex=6a81dde3&is=6a808c63&hm=6a7f6f0288857494e4956afac80d904dc18d2dd96e251669a4e507974bf6f81b&"
-            },
-            ["footer"] = { ["text"] = "Updated" },
-            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-
-    sendWebhookRequest(SPECIAL_STOCK_WEBHOOK, data)
 end
 
 local function getActiveWeatherNames()
@@ -805,8 +669,6 @@ end)
 task.spawn(sendEggWebhook)
 task.spawn(sendGearWebhook)
 task.spawn(sendWeatherWebhook)
-task.spawn(sendSpecialStockWebhook)
-
 -- Merchant has its own state monitor.
 -- It sends/buys once per spawn and resets as soon as MerchantNPC disappears.
 task.spawn(function()
@@ -836,34 +698,6 @@ task.spawn(function()
     end
 end)
 
-local function summonCarbot(bossName)
-    local args = {
-        [1] = "Summon",
-        [2] = bossName,
-        n = 2,
-    }
-
-    pcall(function()
-        SummonBoss:InvokeServer(unpack(args, 1, args.n or #args))
-    end)
-end
-
--- Dr Carbot MkII: every 15 minutes.
-task.spawn(function()
-    while true do
-        task.wait(15 * 60)
-        summonCarbot("Dr Carbot MkII")
-    end
-end)
-
--- Dr Carbot MkIII: every 1 hour.
-task.spawn(function()
-    while true do
-        task.wait(60 * 60)
-        summonCarbot("Dr Carbot MkIII")
-    end
-end)
-
 local lastMinute = -1
 
 task.spawn(function()
@@ -879,7 +713,6 @@ task.spawn(function()
                 task.spawn(sendWeatherWebhook)
 
                 if currentMinute % 10 == 0 then
-                    task.spawn(sendSpecialStockWebhook)
                 end
             end
         end
