@@ -18,6 +18,16 @@ local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AE
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
 local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
 
+-- PCD FNL BOSS website integration
+-- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
+-- Do not commit a real secret to a public repository.
+local WEBSITE_API_URL = "https://pcdfnlboss.vercel.app/api/public/game-event"
+local WEBSITE_SECRET = "pcd_fnl_boss_JIsGajZTXIsjlPHd"
+local WEBSITE_ENABLED = WEBSITE_SECRET ~= ""
+    and WEBSITE_SECRET ~= "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
+local WEBSITE_HEARTBEAT_INTERVAL = 15
+
+
 local roleMap = {
     ["angel"] = "1535453948662784051",
     ["disco"] = "1535454015331242004",
@@ -147,6 +157,62 @@ local function sendWebhookRequest(url, data)
     })
 end
 
+local websiteConfigWarned = false
+
+local function sortWebsiteItems(items)
+    table.sort(items, function(a, b)
+        return string.lower(tostring(a.name or "")) < string.lower(tostring(b.name or ""))
+    end)
+    return items
+end
+
+local function sendWebsiteEvent(data)
+    if not httprequest then
+        return false
+    end
+
+    if not WEBSITE_ENABLED then
+        if not websiteConfigWarned then
+            websiteConfigWarned = true
+            warn("[PCD FNL BOSS] Website integration disabled: configure WEBSITE_SECRET first.")
+        end
+        return false
+    end
+
+    data.timestamp = data.timestamp or os.time()
+
+    local success, response = pcall(function()
+        return httprequest({
+            Url = WEBSITE_API_URL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. WEBSITE_SECRET
+            },
+            Body = HttpService:JSONEncode(data)
+        })
+    end)
+
+    if not success then
+        warn("[PCD FNL BOSS] Website request failed:", response)
+        return false
+    end
+
+    local statusCode = response and (response.StatusCode or response.Status)
+    if statusCode and (statusCode < 200 or statusCode >= 300) then
+        warn("[PCD FNL BOSS] Website API returned status", statusCode)
+        return false
+    end
+
+    return true
+end
+
+local function queueWebsiteEvent(data)
+    task.spawn(function()
+        sendWebsiteEvent(data)
+    end)
+end
+
 local function getStockAmount(stockText)
     if typeof(stockText) ~= "string" then
         return 1
@@ -160,7 +226,8 @@ local function sendEggWebhook()
     task.wait(3)
     local descriptionLines = {}
     local mentions = {}
-    local readyToBuyEggs = {} 
+    local readyToBuyEggs = {}
+    local websiteItems = {}
     
     for _, item in ipairs(EggShopList:GetChildren()) do
         if string.find(string.lower(item.Name), "egg") then
@@ -170,6 +237,14 @@ local function sendEggWebhook()
             if stockText ~= "Unknown" and not string.find(string.upper(stockText), "NO STOCK") then
                 local cleanStock = string.match(stockText, "x%d+") or string.gsub(stockText, "\n", " ")
                 local eggEmoji = getEmojiForEgg(item.Name)
+                local lowerEggName = string.lower(item.Name)
+
+                table.insert(websiteItems, {
+                    name = item.Name,
+                    stock = getStockAmount(stockText),
+                    emoji = eggEmoji,
+                    priority = string.find(lowerEggName, "dragon", 1, true) ~= nil
+                })
                 
                 table.insert(descriptionLines, eggEmoji .. " **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n")
                 
@@ -215,6 +290,13 @@ local function sendEggWebhook()
         }}
     }
     
+    sortWebsiteItems(websiteItems)
+    queueWebsiteEvent({
+        type = "stock",
+        category = "Capybara",
+        items = websiteItems
+    })
+
     sendWebhookRequest(EGG_WEBHOOK, data)
     
     for _, eggData in ipairs(readyToBuyEggs) do
@@ -229,6 +311,7 @@ local function sendGearWebhook()
     task.wait(3)
     local descriptionLines = {}
     local readyToBuyGears = {}
+    local websiteItems = {}
 
     for _, item in ipairs(GearShopList:GetChildren()) do
         local stockLabel = item:FindFirstChild("Stock")
@@ -244,6 +327,11 @@ local function sendGearWebhook()
                     descriptionLines,
                     "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
                 )
+
+                table.insert(websiteItems, {
+                    name = item.Name,
+                    stock = getStockAmount(stockText)
+                })
 
                 -- Auto-buy all gears in stock, including Trading Ticket.
                 table.insert(readyToBuyGears, {
@@ -272,6 +360,13 @@ local function sendGearWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+
+    sortWebsiteItems(websiteItems)
+    queueWebsiteEvent({
+        type = "stock",
+        category = "Gear",
+        items = websiteItems
+    })
 
     sendWebhookRequest(GEAR_WEBHOOK, data)
 
@@ -347,6 +442,7 @@ local function sendWeatherWebhook()
 
     local activeWeathers = {}
     local mentions = {}
+    local websiteEvents = {}
 
     for _, weatherName in ipairs(getActiveWeatherNames()) do
         local mutationName = weatherMutations[weatherName]
@@ -357,6 +453,12 @@ local function sendWeatherWebhook()
             displayName = weatherName .. " -> " .. mutationName
             roleKey = mutationName
         end
+
+        local websiteWeather = { name = weatherName }
+        if mutationName then
+            websiteWeather.mutation = mutationName
+        end
+        table.insert(websiteEvents, websiteWeather)
 
         table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
 
@@ -394,6 +496,12 @@ local function sendWeatherWebhook()
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
+
+    sortWebsiteItems(websiteEvents)
+    queueWebsiteEvent({
+        type = "weather",
+        events = websiteEvents
+    })
 
     sendWebhookRequest(WEATHER_WEBHOOK, data)
 end
@@ -554,6 +662,7 @@ local function sendMerchantWebhook()
     local itemsList = {}
     local mentions = {}
     local readyToBuyMerchant = {}
+    local websiteItems = {}
 
     for _, item in ipairs(merchantShopList:GetChildren()) do
         local stockLabel = item:FindFirstChild("Stock")
@@ -565,6 +674,11 @@ local function sendMerchantWebhook()
                 local cleanStock = string.match(stockText, "x%d+")
                     or string.gsub(stockText, "\n", " ")
                 local itemName = item.Name
+
+                table.insert(websiteItems, {
+                    name = itemName,
+                    stock = getStockAmount(stockText)
+                })
 
                 table.insert(
                     itemsList,
@@ -630,6 +744,14 @@ local function sendMerchantWebhook()
         }}
     }
 
+    sortWebsiteItems(websiteItems)
+    queueWebsiteEvent({
+        type = "merchant",
+        active = true,
+        name = merchantName,
+        items = websiteItems
+    })
+
     sendWebhookRequest(MERCHANT_WEBHOOK, data)
 
     -- Buy only while the real MerchantNPC is still spawned.
@@ -674,6 +796,7 @@ task.spawn(sendWeatherWebhook)
 task.spawn(function()
     local merchantWasSpawned = false
     local handledThisSpawn = false
+    local initialMerchantStateSent = false
 
     while task.wait(1) do
         local merchantNpc = findMerchantNpc()
@@ -689,12 +812,31 @@ task.spawn(function()
 
                 if success then
                     handledThisSpawn = true
+                    initialMerchantStateSent = true
                 end
             end
         else
+            if merchantWasSpawned or not initialMerchantStateSent then
+                queueWebsiteEvent({
+                    type = "merchant",
+                    active = false,
+                    items = {}
+                })
+                initialMerchantStateSent = true
+            end
+
             merchantWasSpawned = false
             handledThisSpawn = false
         end
+    end
+end)
+
+-- Website heartbeat. The backend marks the monitor Offline after ~30 seconds
+-- without heartbeats, so 15 seconds leaves a safe margin.
+task.spawn(function()
+    while true do
+        sendWebsiteEvent({ type = "heartbeat" })
+        task.wait(WEBSITE_HEARTBEAT_INTERVAL)
     end
 end)
 
