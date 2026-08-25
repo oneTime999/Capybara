@@ -8,10 +8,43 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
 local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
 
-Players.LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-end)
+-- Small safety wrapper used around long-running/background work so one transient
+-- Roblox/executor error does not kill an entire monitor coroutine.
+local function safeCall(label, callback, ...)
+    local ok, result = pcall(callback, ...)
+
+    if not ok then
+        warn("[PCD FNL BOSS] " .. label .. " failed:", result)
+    end
+
+    return ok, result
+end
+
+local function spawnSafe(label, callback)
+    task.spawn(function()
+        safeCall(label, callback)
+    end)
+end
+
+-- Anti-AFK: preserve the original LocalPlayer.Idled behavior, but make the
+-- simulated input more reliable and prevent VirtualUser errors from propagating.
+local function keepPlayerActive()
+    safeCall("Anti-AFK", function()
+        local camera = Workspace.CurrentCamera
+
+        VirtualUser:CaptureController()
+
+        if camera then
+            VirtualUser:Button2Down(Vector2.new(0, 0), camera.CFrame)
+            task.wait(0.1)
+            VirtualUser:Button2Up(Vector2.new(0, 0), camera.CFrame)
+        else
+            VirtualUser:ClickButton2(Vector2.new())
+        end
+    end)
+end
+
+Players.LocalPlayer.Idled:Connect(keepPlayerActive)
 
 local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3FzUCxno2gDk9ahnIZZhBtjPHmpt6-JJNsrDZtV0-76Iu219MasTnU3NMplw_urAD"
 local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
@@ -147,14 +180,55 @@ local function getEmojiForEgg(eggName)
     return defaultEmoji
 end
 
+local function getHttpStatusCode(response)
+    if not response then
+        return nil
+    end
+
+    return tonumber(response.StatusCode or response.Status)
+end
+
+local function postJson(url, data, extraHeaders, label)
+    if not httprequest then
+        return false
+    end
+
+    local success, response = pcall(function()
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+
+        if extraHeaders then
+            for key, value in pairs(extraHeaders) do
+                headers[key] = value
+            end
+        end
+
+        return httprequest({
+            Url = url,
+            Method = "POST",
+            Headers = headers,
+            Body = HttpService:JSONEncode(data)
+        })
+    end)
+
+    if not success then
+        warn("[PCD FNL BOSS] " .. label .. " request failed:", response)
+        return false
+    end
+
+    local statusCode = getHttpStatusCode(response)
+
+    if statusCode and (statusCode < 200 or statusCode >= 300) then
+        warn("[PCD FNL BOSS] " .. label .. " returned status", statusCode)
+        return false
+    end
+
+    return true
+end
+
 local function sendWebhookRequest(url, data)
-    if not httprequest then return end
-    httprequest({
-        Url = url,
-        Method = "POST",
-        Headers = { ["Content-Type"] = "application/json" },
-        Body = HttpService:JSONEncode(data)
-    })
+    return postJson(url, data, nil, "Discord webhook")
 end
 
 local websiteConfigWarned = false
@@ -181,30 +255,12 @@ local function sendWebsiteEvent(data)
 
     data.timestamp = data.timestamp or os.time()
 
-    local success, response = pcall(function()
-        return httprequest({
-            Url = WEBSITE_API_URL,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Authorization"] = "Bearer " .. WEBSITE_SECRET
-            },
-            Body = HttpService:JSONEncode(data)
-        })
-    end)
-
-    if not success then
-        warn("[PCD FNL BOSS] Website request failed:", response)
-        return false
-    end
-
-    local statusCode = response and (response.StatusCode or response.Status)
-    if statusCode and (statusCode < 200 or statusCode >= 300) then
-        warn("[PCD FNL BOSS] Website API returned status", statusCode)
-        return false
-    end
-
-    return true
+    return postJson(
+        WEBSITE_API_URL,
+        data,
+        { ["Authorization"] = "Bearer " .. WEBSITE_SECRET },
+        "Website API"
+    )
 end
 
 local function queueWebsiteEvent(data)
@@ -788,9 +844,9 @@ GuiService.ErrorMessageChanged:Connect(function(errorMessage)
     end
 end)
 
-task.spawn(sendEggWebhook)
-task.spawn(sendGearWebhook)
-task.spawn(sendWeatherWebhook)
+spawnSafe("Initial Egg stock scan", sendEggWebhook)
+spawnSafe("Initial Gear stock scan", sendGearWebhook)
+spawnSafe("Initial Weather scan", sendWeatherWebhook)
 -- Merchant has its own state monitor.
 -- It sends/buys once per spawn and resets as soon as MerchantNPC disappears.
 task.spawn(function()
@@ -799,35 +855,37 @@ task.spawn(function()
     local initialMerchantStateSent = false
 
     while task.wait(1) do
-        local merchantNpc = findMerchantNpc()
+        safeCall("Merchant monitor", function()
+            local merchantNpc = findMerchantNpc()
 
-        if merchantNpc then
-            if not merchantWasSpawned then
-                merchantWasSpawned = true
-                handledThisSpawn = false
-            end
+            if merchantNpc then
+                if not merchantWasSpawned then
+                    merchantWasSpawned = true
+                    handledThisSpawn = false
+                end
 
-            if not handledThisSpawn then
-                local success = sendMerchantWebhook()
+                if not handledThisSpawn then
+                    local success = sendMerchantWebhook()
 
-                if success then
-                    handledThisSpawn = true
+                    if success then
+                        handledThisSpawn = true
+                        initialMerchantStateSent = true
+                    end
+                end
+            else
+                if merchantWasSpawned or not initialMerchantStateSent then
+                    queueWebsiteEvent({
+                        type = "merchant",
+                        active = false,
+                        items = {}
+                    })
                     initialMerchantStateSent = true
                 end
-            end
-        else
-            if merchantWasSpawned or not initialMerchantStateSent then
-                queueWebsiteEvent({
-                    type = "merchant",
-                    active = false,
-                    items = {}
-                })
-                initialMerchantStateSent = true
-            end
 
-            merchantWasSpawned = false
-            handledThisSpawn = false
-        end
+                merchantWasSpawned = false
+                handledThisSpawn = false
+            end
+        end)
     end
 end)
 
@@ -835,7 +893,7 @@ end)
 -- without heartbeats, so 15 seconds leaves a safe margin.
 task.spawn(function()
     while true do
-        sendWebsiteEvent({ type = "heartbeat" })
+        safeCall("Website heartbeat", sendWebsiteEvent, { type = "heartbeat" })
         task.wait(WEBSITE_HEARTBEAT_INTERVAL)
     end
 end)
@@ -850,12 +908,9 @@ task.spawn(function()
             if currentMinute % 5 == 0 then
                 lastMinute = currentMinute
                 
-                task.spawn(sendEggWebhook)
-                task.spawn(sendGearWebhook)
-                task.spawn(sendWeatherWebhook)
-
-                if currentMinute % 10 == 0 then
-                end
+                spawnSafe("Scheduled Egg stock scan", sendEggWebhook)
+                spawnSafe("Scheduled Gear stock scan", sendGearWebhook)
+                spawnSafe("Scheduled Weather scan", sendWeatherWebhook)
             end
         end
     end
