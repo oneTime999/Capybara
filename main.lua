@@ -46,6 +46,25 @@ end
 
 Players.LocalPlayer.Idled:Connect(keepPlayerActive)
 
+-- Extra Anti-AFK: periodically make the local character jump.
+-- This is intentionally lightweight and independent from the Idled event, so
+-- it still creates player activity even if the executor stops firing Idled.
+local ANTI_AFK_JUMP_INTERVAL = 20
+
+spawnSafe("Anti-AFK Jump Loop", function()
+    while task.wait(ANTI_AFK_JUMP_INTERVAL) do
+        local character = Players.LocalPlayer.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid and humanoid.Health > 0 then
+            safeCall("Anti-AFK Jump", function()
+                humanoid.Jump = true
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end)
+        end
+    end
+end)
+
 local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3FzUCxno2gDk9ahnIZZhBtjPHmpt6-JJNsrDZtV0-76Iu219MasTnU3NMplw_urAD"
 local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
