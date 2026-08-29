@@ -154,6 +154,7 @@ local weatherEmojiMap = {
 local merchantEmojiMap = {
     -- King Capybara
     ["Gilded Hatch Hammer"] = "<:hatchhammer:1542666372046266470>",
+    ["Gold Scroll Sack"] = "<:goldscrollsack:1543283926729105578>",
     ["Totem Of Status"] = "<:totemofstatus:1542943927135633488>",
 
     -- Martian
@@ -165,13 +166,13 @@ local merchantEmojiMap = {
     ["Totem Of Might"] = "<:totemofmight:1542679617494716476>",
     ["Totem Of Marrow"] = "<:totemofmarrow:1542679709874266243>",
     ["Rainbow Scroll Sack"] = "<:rainbowscrollsack:1543280383527751783>",
-    ["Gold Scroll Sack"] = "<:goldscrollsack:1543283926729105578>",
 
     -- Jester
     ["Moonlit Scroll"] = "<:moonlightscroll:1542791200560381972>",
     ["Chilly Scroll"] = "<:chillyscroll:1542678671507193986>",
     ["Toasty Scroll"] = "<:toastyscroll:1542678787282698451>",
     ["Tranquil Scroll"] = "<:tranquilscroll:1542678878177468486>",
+    ["Scroll Sack"] = "<:scrollsack:1543310648186769428>",
     ["Shocked Scroll"] = "<:shockedscroll:1542678950583734372>",
     ["Glitched Scroll"] = "<:glitchedscroll:1542791264892751922>"
 }
