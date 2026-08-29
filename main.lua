@@ -133,7 +133,7 @@ local gearEmojiMap = {
     ["Boombox"] = "<:boombox:1542666547690995762>",
     ["Bizarre Stopwatch"] = "<:bizarrestopwatch:1542666599587385345>",
     ["Trading Ticket"] = "<:tradingticket:1542666666389807122>",
-    ["Level-Up Loaf"] = "<:leveluploaf:1543276539796263022>"
+    ["Level Up Loaf"] = "<:leveluploaf:1543276539796263022>"
 }
 
 local weatherEmojiMap = {
@@ -154,7 +154,6 @@ local weatherEmojiMap = {
 local merchantEmojiMap = {
     -- King Capybara
     ["Gilded Hatch Hammer"] = "<:hatchhammer:1542666372046266470>",
-    ["Gold Scroll"] = "<:goldscroll:1542666741253931129>",
     ["Totem Of Status"] = "<:totemofstatus:1542943927135633488>",
 
     -- Martian
@@ -165,7 +164,7 @@ local merchantEmojiMap = {
     -- Timbles
     ["Totem Of Might"] = "<:totemofmight:1542679617494716476>",
     ["Totem Of Marrow"] = "<:totemofmarrow:1542679709874266243>",
-    ["Rainbow Scroll"] = "<:rainbowscroll:1542679034121555968>",
+    ["Rainbow Scroll Sack"] = "<:rainbowscrollsack:1543280383527751783>",
 
     -- Jester
     ["Moonlit Scroll"] = "<:moonlightscroll:1542791200560381972>",
@@ -191,36 +190,38 @@ local weatherRoles = {
 
 local merchantItemRoles = {
     ["Gilded Hatch Hammer"] = "1537226549689065605",
-    ["Gold Scroll"] = "1537226610430713886",
+    ["Gold Scroll Sack"] = "1537226610430713886",
     ["Totem Of Status"] = "1537226662863831100",
     ["Raygun"] = "1537226801049509929",
     ["Alien Tesla"] = "1537226928959000758",
     ["Totem Of Stars"] = "1537226952287723571",
     ["Totem Of Might"] = "1537227181107970168",
     ["Totem Of Marrow"] = "1537227221536608266",
-    ["Rainbow Scroll"] = "1537227245238878318",
+    ["Rainbow Scroll Sack"] = "1537227245238878318",
     ["Moonlit Scroll"] = "1537227098186580038",
     ["Chilly Scroll"] = "1537227678854418492",
     ["Toasty Scroll"] = "1537227446766800906",
     ["Tranquil Scroll"] = "1537227539980750888",
+    ["Scroll Sack"] = "1543280071798816808",
     ["Shocked Scroll"] = "1537227413849776138",
     ["Glitched Scroll"] = "1537227387412942909"
 }
 
 local merchantItemsToBuy = {
     "Gilded Hatch Hammer",
-    "Gold Scroll",
+    "Gold Scroll Sack",
     "Totem Of Status",
     "Raygun",
     "Alien Tesla",
     "Totem Of Stars",
     "Totem Of Might",
     "Totem Of Marrow",
-    "Rainbow Scroll",
+    "Rainbow Scroll Sack",
     "Moonlit Scroll",
     "Chilly Scroll",
     "Toasty Scroll",
     "Tranquil Scroll",
+    "Scroll Sack",
     "Shocked Scroll",
     "Glitched Scroll"
 }
@@ -465,7 +466,7 @@ local function sendGearWebhook()
                     stock = getStockAmount(stockText)
                 })
 
-                -- Auto-buy all gears in stock, including Trading Ticket and Level-Up Loaf.
+                -- Auto-buy all gears in stock, including Trading Ticket and Level Up Loaf.
                 table.insert(readyToBuyGears, {
                     name = item.Name,
                     amount = getStockAmount(stockText)
