@@ -165,6 +165,7 @@ local merchantEmojiMap = {
     ["Totem Of Might"] = "<:totemofmight:1542679617494716476>",
     ["Totem Of Marrow"] = "<:totemofmarrow:1542679709874266243>",
     ["Rainbow Scroll Sack"] = "<:rainbowscrollsack:1543280383527751783>",
+    ["Gold Scroll Sack"] = "<:goldscrollsack:1543283926729105578>",
 
     -- Jester
     ["Moonlit Scroll"] = "<:moonlightscroll:1542791200560381972>",
