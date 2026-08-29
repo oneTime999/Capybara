@@ -74,7 +74,7 @@ local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
 -- Do not commit a real secret to a public repository.
 local WEBSITE_API_URL = "https://pcdfnlboss.vercel.app/api/public/game-event"
-local WEBSITE_SECRET = "pcd_fnl_boss_JIsGajZTXIsjlPHd"
+local WEBSITE_SECRET = "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_ENABLED = WEBSITE_SECRET ~= ""
     and WEBSITE_SECRET ~= "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_HEARTBEAT_INTERVAL = 15
@@ -132,7 +132,8 @@ local gearEmojiMap = {
     ["Mutation Sponge"] = "<:mutationsponge:1542666480921870436>",
     ["Boombox"] = "<:boombox:1542666547690995762>",
     ["Bizarre Stopwatch"] = "<:bizarrestopwatch:1542666599587385345>",
-    ["Trading Ticket"] = "<:tradingticket:1542666666389807122>"
+    ["Trading Ticket"] = "<:tradingticket:1542666666389807122>",
+    ["Level-Up Loaf"] = "<:leveluploaf:1543276539796263022>"
 }
 
 local weatherEmojiMap = {
@@ -226,7 +227,6 @@ local merchantItemsToBuy = {
 
 local targetEggsToBuy = {
     "Angel Capybara Egg",
-    "Disco Capybara Egg",
     "Dragon Capybara Egg"
 }
 
@@ -465,7 +465,7 @@ local function sendGearWebhook()
                     stock = getStockAmount(stockText)
                 })
 
-                -- Auto-buy all gears in stock, including Trading Ticket.
+                -- Auto-buy all gears in stock, including Trading Ticket and Level-Up Loaf.
                 table.insert(readyToBuyGears, {
                     name = item.Name,
                     amount = getStockAmount(stockText)
