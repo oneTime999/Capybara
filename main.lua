@@ -74,7 +74,7 @@ local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
 -- Do not commit a real secret to a public repository.
 local WEBSITE_API_URL = "https://pcdfnlboss.vercel.app/api/public/game-event"
-local WEBSITE_SECRET = "pcd_fnl_boss_JIsGajZTXIsjlPHd"
+local WEBSITE_SECRET = "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_ENABLED = WEBSITE_SECRET ~= ""
     and WEBSITE_SECRET ~= "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_HEARTBEAT_INTERVAL = 15
@@ -117,7 +117,62 @@ local weatherMutations = {
     ["Glitch"] = "Glitched",
     ["Meteor Shower"] = "Celestial",
     ["Rain"] = "+25% Faster Plant Spawnrate",
-    ["Red Sun"] = "Scorched"
+    ["Red Sun"] = "Scorched",
+    ["Taco Rain"] = "Taco",
+    ["Reverse Sun"] = "Flipped"
+}
+
+-- Custom Discord emojis used only for webhook presentation.
+-- Website payloads continue sending canonical item/weather names so the website
+-- can resolve its own icons without depending on Discord emoji syntax.
+local gearEmojiMap = {
+    ["Hatch Hammer"] = "<:hatchhammer:1542666372046266470>",
+    ["Nametag"] = "<:nametag:1542666427113406524>",
+    ["Name Tag"] = "<:nametag:1542666427113406524>",
+    ["Mutation Sponge"] = "<:mutationsponge:1542666480921870436>",
+    ["Boombox"] = "<:boombox:1542666547690995762>",
+    ["Bizarre Stopwatch"] = "<:bizarrestopwatch:1542666599587385345>",
+    ["Trading Ticket"] = "<:tradingticket:1542666666389807122>"
+}
+
+local weatherEmojiMap = {
+    ["Night"] = "<:night:1542675888447954974>",
+    ["Meteor Shower"] = "<:meteorshower:1542676389772271719>",
+    ["Rain"] = "<:rain:1542675829765578792>",
+    ["Thunder"] = "<:thunder:1542675984191455342>",
+    ["Zen"] = "<:zen:1542675329519456376>",
+    ["Snowy"] = "<:snowy:1542675630209110219>",
+    ["Blizzard"] = "<:blizzard:1542675745732698182>",
+    ["Heatwave"] = "<:heatwave:1542676642810433596>",
+    ["Red Sun"] = "<:redsun:1542676252152959046>",
+    ["Glitch"] = "<:glitch:1542675470984675368>",
+    ["Taco Rain"] = "<:tacos:1542676589290987620>",
+    ["Reverse Sun"] = "<:reversesun:1542676163883700274>"
+}
+
+local merchantEmojiMap = {
+    -- King Capybara
+    ["Gilded Hatch Hammer"] = "<:hatchhammer:1542666372046266470>",
+    ["Gold Scroll"] = "<:goldscroll:1542666741253931129>",
+    ["Totem Of Status"] = "<:totemofstatus:1542943927135633488>",
+
+    -- Martian
+    ["Raygun"] = "<:raygun:1542937449758724296>",
+    ["Alien Tesla"] = "<:alientesla:1542937493660241970>",
+    ["Totem Of Stars"] = "<:totemofstars:1542937534664024306>",
+
+    -- Timbles
+    ["Totem Of Might"] = "<:totemofmight:1542679617494716476>",
+    ["Totem Of Marrow"] = "<:totemofmarrow:1542679709874266243>",
+    ["Rainbow Scroll"] = "<:rainbowscroll:1542679034121555968>",
+
+    -- Jester
+    ["Moonlit Scroll"] = "<:moonlightscroll:1542791200560381972>",
+    ["Chilly Scroll"] = "<:chillyscroll:1542678671507193986>",
+    ["Toasty Scroll"] = "<:toastyscroll:1542678787282698451>",
+    ["Tranquil Scroll"] = "<:tranquilscroll:1542678878177468486>",
+    ["Shocked Scroll"] = "<:shockedscroll:1542678950583734372>",
+    ["Glitched Scroll"] = "<:glitchedscroll:1542791264892751922>"
 }
 
 local weatherRoles = {
@@ -398,9 +453,11 @@ local function sendGearWebhook()
                 local cleanStock = string.match(stockText, "x%d+")
                     or string.gsub(stockText, "\n", " ")
 
+                local gearEmoji = gearEmojiMap[item.Name] or "⚒️"
+
                 table.insert(
                     descriptionLines,
-                    "⚒️ **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                    gearEmoji .. " **" .. item.Name .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
                 )
 
                 table.insert(websiteItems, {
@@ -535,7 +592,8 @@ local function sendWeatherWebhook()
         end
         table.insert(websiteEvents, websiteWeather)
 
-        table.insert(activeWeathers, "🌤️ **" .. displayName .. "**")
+        local weatherEmoji = weatherEmojiMap[weatherName] or "🌤️"
+        table.insert(activeWeathers, weatherEmoji .. " **" .. displayName .. "**")
 
         if weatherRoles[roleKey] then
             table.insert(mentions, "<@&" .. weatherRoles[roleKey] .. ">")
@@ -755,9 +813,11 @@ local function sendMerchantWebhook()
                     stock = getStockAmount(stockText)
                 })
 
+                local merchantEmoji = merchantEmojiMap[itemName] or "📦"
+
                 table.insert(
                     itemsList,
-                    "📦 **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
+                    merchantEmoji .. " **" .. itemName .. "**\n> 📦 Stock: `" .. cleanStock .. "`\n"
                 )
 
                 if table.find(merchantItemsToBuy, itemName) then
