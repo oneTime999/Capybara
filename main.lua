@@ -74,7 +74,7 @@ local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
 -- Do not commit a real secret to a public repository.
 local WEBSITE_API_URL = "https://pcdfnlboss.vercel.app/api/public/game-event"
-local WEBSITE_SECRET = "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
+local WEBSITE_SECRET = "pcd_fnl_boss_JIsGajZTXIsjlPHd"
 local WEBSITE_ENABLED = WEBSITE_SECRET ~= ""
     and WEBSITE_SECRET ~= "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_HEARTBEAT_INTERVAL = 15
