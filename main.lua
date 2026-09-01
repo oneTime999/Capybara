@@ -89,6 +89,13 @@ local roleMap = {
     ["dragon"] = "1540737633125138522"
 }
 
+-- Gear roles are matched by canonical ShopData item name.
+-- Keep the old hyphenated alias only for backwards compatibility.
+local gearRoleMap = {
+    ["Level Up Loaf"] = "1543276362117288086",
+    ["Level-Up Loaf"] = "1543276362117288086"
+}
+
 
 local emojiMap = {
     ["alpha"] = "<:alphacapybaraegg:1535644980805107732>",
@@ -443,6 +450,7 @@ end
 local function sendGearWebhook()
     task.wait(3)
     local descriptionLines = {}
+    local mentions = {}
     local readyToBuyGears = {}
     local websiteItems = {}
 
@@ -468,6 +476,12 @@ local function sendGearWebhook()
                     stock = getStockAmount(stockText)
                 })
 
+                -- Mention the item-specific Gear ping when this Gear is in stock.
+                local gearRoleId = gearRoleMap[item.Name]
+                if gearRoleId then
+                    table.insert(mentions, "<@&" .. gearRoleId .. ">")
+                end
+
                 -- Auto-buy all gears in stock, including Trading Ticket and Level Up Loaf.
                 table.insert(readyToBuyGears, {
                     name = item.Name,
@@ -483,7 +497,17 @@ local function sendGearWebhook()
         finalDescription = "❌ *No gears currently in stock.*"
     end
 
+    local uniqueMentions = ""
+    local seenMentions = {}
+    for _, mention in ipairs(mentions) do
+        if not seenMentions[mention] then
+            uniqueMentions = uniqueMentions .. mention .. " "
+            seenMentions[mention] = true
+        end
+    end
+
     local data = {
+        ["content"] = uniqueMentions ~= "" and uniqueMentions or nil,
         ["embeds"] = {{
             ["title"] = "⚙️ Gear Shop Restock",
             ["description"] = finalDescription,
