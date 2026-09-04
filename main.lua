@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local BuyMerchantItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyMerchantItem")
 local BuyItem = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BuyItem")
+local TurnInBounty = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TurnInBounty")
 
 -- Small safety wrapper used around long-running/background work so one transient
 -- Roblox/executor error does not kill an entire monitor coroutine.
@@ -934,6 +935,163 @@ local function sendMerchantWebhook()
 
     return true
 end
+
+-- Any Secret bounty automation.
+-- This monitor is intentionally local-only: it does NOT send a Discord webhook
+-- and does NOT create a website event.
+--
+-- At xx:00 / xx:15 / xx:30 / xx:45 it checks:
+-- Players.LocalPlayer.PlayerGui.ImpossibleBillboard.Frame.Title.Text
+-- and only acts when the text is EXACTLY "Any Secret".
+local BOUNTY_SECRET_PRIORITY = {
+    "Pumpking",
+    "True Carrot",
+    "Dragonfruit"
+}
+
+-- Accept only a completely plain secret, or a secret with ONLY a size prefix
+-- such as "[1.1x] Pumpking". Mutation-prefixed tools are deliberately ignored.
+local function getSecretSizeScore(toolName, secretName)
+    if toolName == secretName then
+        return 0
+    end
+
+    local sizeText, baseName = string.match(toolName, "^%[(%d+%.?%d*)x%]%s+(.+)$")
+    if sizeText and baseName == secretName then
+        return tonumber(sizeText) or math.huge
+    end
+
+    return nil
+end
+
+local function findBestBountySecret()
+    local player = Players.LocalPlayer
+    local backpack = player:FindFirstChildOfClass("Backpack") or player:FindFirstChild("Backpack")
+
+    if not backpack then
+        return nil
+    end
+
+    -- Secret type priority is stronger than size priority:
+    -- Pumpking -> True Carrot -> Dragonfruit.
+    -- Inside each type: plain first, otherwise the smallest non-mutated size.
+    for _, secretName in ipairs(BOUNTY_SECRET_PRIORITY) do
+        local bestTool = nil
+        local bestScore = math.huge
+
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                local score = getSecretSizeScore(item.Name, secretName)
+
+                if score ~= nil and score < bestScore then
+                    bestTool = item
+                    bestScore = score
+
+                    if score == 0 then
+                        break
+                    end
+                end
+            end
+        end
+
+        if bestTool then
+            return bestTool, secretName, bestScore
+        end
+    end
+
+    return nil
+end
+
+local function getBountyTitle()
+    local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local billboard = playerGui and playerGui:FindFirstChild("ImpossibleBillboard")
+    local frame = billboard and billboard:FindFirstChild("Frame")
+    local title = frame and frame:FindFirstChild("Title")
+
+    if title and (title:IsA("TextLabel") or title:IsA("TextButton") or title:IsA("TextBox")) then
+        return title.Text
+    end
+
+    return nil
+end
+
+local function turnInAnySecretBounty()
+    -- Exact match only, as requested.
+    if getBountyTitle() ~= "Any Secret" then
+        return false
+    end
+
+    local player = Players.LocalPlayer
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if not character or not humanoid or humanoid.Health <= 0 then
+        return false
+    end
+
+    local secretTool, secretName, sizeScore = findBestBountySecret()
+    if not secretTool then
+        print("[PCD FNL BOSS] Any Secret bounty: no eligible plain/non-mutated Secret found.")
+        return true
+    end
+
+    -- Equip exactly one Secret.
+    humanoid:EquipTool(secretTool)
+    task.wait(0.2)
+
+    if secretTool.Parent ~= character then
+        warn("[PCD FNL BOSS] Any Secret bounty: failed to equip " .. secretTool.Name)
+        humanoid:UnequipTools()
+        return true
+    end
+
+    local displaySize = sizeScore == 0 and "plain" or (tostring(sizeScore) .. "x")
+    print("[PCD FNL BOSS] Any Secret bounty: turning in " .. secretName .. " (" .. displaySize .. ")")
+
+    local invokeOk, invokeResult = pcall(function()
+        return TurnInBounty:InvokeServer()
+    end)
+
+    if not invokeOk then
+        warn("[PCD FNL BOSS] TurnInBounty failed:", invokeResult)
+    end
+
+    -- Give the server a moment to consume/remove the equipped Tool.
+    task.wait(1.25)
+
+    -- If it is still physically equipped, remove it from the hand ourselves.
+    -- If the server consumed it or moved it away from Character, do nothing.
+    if secretTool.Parent == character then
+        humanoid:UnequipTools()
+        print("[PCD FNL BOSS] Any Secret bounty: item was still equipped, so it was unequipped locally.")
+    else
+        print("[PCD FNL BOSS] Any Secret bounty: equipped item left the hand successfully.")
+    end
+
+    return true
+end
+
+-- Quarter-hour monitor. It can notice "Any Secret" at any point during the
+-- xx:00/15/30/45 minute, but will attempt at most once for that quarter slot.
+task.spawn(function()
+    local handledQuarterKey = nil
+
+    while task.wait(1) do
+        safeCall("Any Secret bounty monitor", function()
+            local now = os.time()
+            local minute = tonumber(os.date("!%M", now))
+
+            if minute and minute % 15 == 0 then
+                local quarterKey = os.date("!%Y-%m-%dT%H:%M", now)
+
+                if handledQuarterKey ~= quarterKey and getBountyTitle() == "Any Secret" then
+                    handledQuarterKey = quarterKey
+                    turnInAnySecretBounty()
+                end
+            end
+        end)
+    end
+end)
 
 GuiService.ErrorMessageChanged:Connect(function(errorMessage)
     if errorMessage and errorMessage ~= "" then
