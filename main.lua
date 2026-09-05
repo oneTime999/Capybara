@@ -183,6 +183,9 @@ local merchantEmojiMap = {
     ["Scroll Sack"] = "<:scrollsack:1543310648186769428>",
     ["Shocked Scroll"] = "<:shockedscroll:1542678950583734372>",
     ["Glitched Scroll"] = "<:glitchedscroll:1542791264892751922>"
+
+    -- Collecter Fern items intentionally have no custom emoji yet;
+    -- the webhook uses the existing 📦 fallback until IDs are provided.
 }
 
 local weatherRoles = {
@@ -215,6 +218,10 @@ local merchantItemRoles = {
     ["Scroll Sack"] = "1543280071798816808",
     ["Shocked Scroll"] = "1537227413849776138",
     ["Glitched Scroll"] = "1537227387412942909"
+
+    -- Collecter Fern role IDs are not configured here yet. The items are still
+    -- detected, shown, sent to the website and auto-bought; role mentions are
+    -- added once their Discord role IDs are supplied.
 }
 
 local merchantItemsToBuy = {
@@ -233,7 +240,12 @@ local merchantItemsToBuy = {
     "Tranquil Scroll",
     "Scroll Sack",
     "Shocked Scroll",
-    "Glitched Scroll"
+    "Glitched Scroll",
+
+    -- Collecter Fern
+    "Slice Of Loaf",
+    "Fountain Ducky",
+    "Totem Of Experience"
 }
 
 local targetEggsToBuy = {
