@@ -1,3 +1,8 @@
+-- PCD FNL BOSS Monitor v27
+-- Based on Merchant v25 + tested Season Pass Stock v4 + Night Mystery Egg auto-buy.
+-- Merchant banner removed in this version as previously requested.
+-- Season Pass watches: Night Mystery Egg, Level Up Loaf, Totem Of Stars, Raygun.
+
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
@@ -70,6 +75,7 @@ local EGG_WEBHOOK = "https://discord.com/api/webhooks/1535448086875340932/nUW3Fz
 local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AEO6jgkLgiNWF4pav6dxud79izPFHQLZHOJMxLACTfva0ZntDPoYvnCUyjCvd-Z6k"
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
 local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
+local SEASON_PASS_WEBHOOK = "https://discord.com/api/webhooks/1546169155252789279/JTbpTpdAIp8IWoBZRxd41bb4aOkQyaV7do3_Kv5i2BodPCoFuWwzObwh-1F63CgduNA-"
 
 -- PCD FNL BOSS website integration
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
@@ -95,6 +101,39 @@ local roleMap = {
 local gearRoleMap = {
     ["Level Up Loaf"] = "1543276362117288086",
     ["Level-Up Loaf"] = "1543276362117288086"
+}
+
+
+-- Season Pass Stock
+-- Only these four confirmed cards are monitored. Every unrelated/template card
+-- (including the generic Title "Capybara") is ignored automatically.
+local SEASON_PASS_CHECK_INTERVAL = 3
+local SEASON_PASS_SETTLE_DELAY = 3
+
+-- Season Pass auto-buy
+-- The shop rotates every 10 minutes, but we keep checking every 3 seconds
+-- so a fresh stock is detected almost immediately.
+local SEASON_PASS_NAME = "Season 1"
+local SEASON_PASS_AUTO_BUY_ITEM = "Night Mystery Egg"
+local SEASON_PASS_AUTO_BUY_ENABLED = true
+
+local seasonPassTargetItems = {
+    ["Level Up Loaf"] = {
+        emoji = "<:leveluploaf:1543276539796263022>",
+        role = "1543276362117288086"
+    },
+    ["Night Mystery Egg"] = {
+        emoji = "<:nightmysteryegg:1546176478289465444>",
+        role = "1546176802496446594"
+    },
+    ["Totem Of Stars"] = {
+        emoji = "<:totemofstars:1542937534664024306>",
+        role = "1537226952287723571"
+    },
+    ["Raygun"] = {
+        emoji = "<:raygun:1542937449758724296>",
+        role = "1537226801049509929"
+    }
 }
 
 
@@ -911,9 +950,6 @@ local function sendMerchantWebhook()
             ["title"] = "🧑‍💼 Merchant Status",
             ["description"] = "🏷️ **Current Merchant:** `" .. merchantName .. "`\n\n**Items in Stock:**\n" .. itemsDescription,
             ["color"] = 16711680,
-            ["image"] = {
-                ["url"] = "https://cdn.discordapp.com/attachments/1537331988720123935/1538214896368357499/ChatGPT_Image_15_de_ago._de_2026_12_53_53_3.png?ex=6a81ddc1&is=6a808c41&hm=b453e88db9dd53a469576aeee257ae80db51a9c9411f6e22de1195f06f90f2b6&"
-            },
             ["footer"] = { ["text"] = "Updated" },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
@@ -963,6 +999,249 @@ local BOUNTY_SECRET_PRIORITY = {
 
 -- Accept only a completely plain secret, or a secret with ONLY a size prefix
 -- such as "[1.1x] Pumpking". Mutation-prefixed tools are deliberately ignored.
+
+-- ============================================================================
+-- Season Pass Stock notifier
+-- ============================================================================
+local seasonPassLastFingerprint = nil
+
+local function seasonPassTrim(value)
+    return tostring(value or "")
+        :gsub("^%s+", "")
+        :gsub("%s+$", "")
+end
+
+local function getSeasonPassList()
+    local seasonPass = Frames:FindFirstChild("SeasonPass")
+    local shopFrame = seasonPass and seasonPass:FindFirstChild("ShopFrame")
+    return shopFrame and shopFrame:FindFirstChild("List") or nil
+end
+
+local function getSeasonPassText(parent, name)
+    local object = parent and parent:FindFirstChild(name)
+
+    if object and (
+        object:IsA("TextLabel")
+        or object:IsA("TextButton")
+        or object:IsA("TextBox")
+    ) then
+        return seasonPassTrim(object.Text)
+    end
+
+    return ""
+end
+
+local function isSeasonPassItemInStock(stockText)
+    local stock = string.upper(seasonPassTrim(stockText))
+
+    if stock == "" then
+        return false
+    end
+
+    if string.find(stock, "NO STOCK", 1, true)
+        or string.find(stock, "OUT OF STOCK", 1, true)
+        or string.find(stock, "SOLD OUT", 1, true)
+        or stock == "0"
+        or stock == "X0" then
+        return false
+    end
+
+    return true
+end
+
+local function getSeasonPassStockDisplay(stockText)
+    local compactX = string.match(stockText, "[xX]%s*(%d+)")
+
+    if compactX then
+        return "x" .. compactX
+    end
+
+    local number = string.match(stockText, "(%d+)")
+
+    if number then
+        return "x" .. number
+    end
+
+    return seasonPassTrim(stockText):gsub("\n", " ")
+end
+
+local function readSeasonPassTarget(frame)
+    local title = getSeasonPassText(frame, "Title")
+    local config = seasonPassTargetItems[title]
+
+    -- Whitelist matching means generic/template cards such as "Capybara"
+    -- and every unrelated Season Pass item are ignored.
+    if not config then
+        return nil
+    end
+
+    local stockText = getSeasonPassText(frame, "Stock")
+
+    if not isSeasonPassItemInStock(stockText) then
+        return nil
+    end
+
+    return {
+        name = title,
+        stock = getSeasonPassStockDisplay(stockText),
+        rawStock = stockText,
+        emoji = config.emoji,
+        role = config.role
+    }
+end
+
+local function getSeasonPassRelevantStock()
+    local list = getSeasonPassList()
+    local items = {}
+
+    if not list then
+        return items
+    end
+
+    for _, child in ipairs(list:GetChildren()) do
+        if child:IsA("GuiObject") then
+            local item = readSeasonPassTarget(child)
+
+            if item then
+                table.insert(items, item)
+            end
+        end
+    end
+
+    table.sort(items, function(a, b)
+        return a.name < b.name
+    end)
+
+    return items
+end
+
+local function getSeasonPassFingerprint(items)
+    local parts = {}
+
+    for _, item in ipairs(items) do
+        table.insert(parts, item.name .. "|" .. item.rawStock)
+    end
+
+    return table.concat(parts, "\n")
+end
+
+local function sendSeasonPassWebhook(items)
+    if #items == 0 then
+        return false
+    end
+
+    local lines = {}
+    local mentions = {}
+    local seenRoles = {}
+
+    for _, item in ipairs(items) do
+        table.insert(
+            lines,
+            item.emoji
+                .. " **" .. item.name .. "**\n"
+                .. "> 📦 Stock: `" .. item.stock .. "`\n"
+        )
+
+        if item.role and not seenRoles[item.role] then
+            table.insert(mentions, "<@&" .. item.role .. ">")
+            seenRoles[item.role] = true
+        end
+    end
+
+    local data = {
+        ["content"] = #mentions > 0 and table.concat(mentions, " ") or nil,
+        ["embeds"] = {{
+            ["title"] = "🎟️ Season Pass Stock",
+            ["description"] = "**Items in Stock:**\n" .. table.concat(lines, "\n"),
+            ["color"] = 16711680,
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+
+    return sendWebhookRequest(SEASON_PASS_WEBHOOK, data)
+end
+
+
+local seasonPassLastAutoBuyFingerprint = nil
+
+local function autoBuyNightMysteryEgg(items, fingerprint)
+    if not SEASON_PASS_AUTO_BUY_ENABLED then
+        return
+    end
+
+    if fingerprint == seasonPassLastAutoBuyFingerprint then
+        return
+    end
+
+    for _, item in ipairs(items) do
+        if item.name == SEASON_PASS_AUTO_BUY_ITEM then
+            local remote = ReplicatedStorage.Remotes:FindFirstChild("BuyEventShopItem")
+
+            if not remote then
+                warn("[Season Pass] BuyEventShopItem remote not found.")
+                return
+            end
+
+            seasonPassLastAutoBuyFingerprint = fingerprint
+
+            local ok, err = pcall(function()
+                remote:FireServer(SEASON_PASS_AUTO_BUY_ITEM, SEASON_PASS_NAME)
+            end)
+
+            if ok then
+                print(
+                    "[Season Pass] Auto-buy requested:",
+                    SEASON_PASS_AUTO_BUY_ITEM,
+                    "|",
+                    SEASON_PASS_NAME
+                )
+            else
+                warn("[Season Pass] Auto-buy error:", err)
+            end
+
+            return
+        end
+    end
+end
+
+local function scanSeasonPassStock()
+    local initialItems = getSeasonPassRelevantStock()
+    local initialFingerprint = getSeasonPassFingerprint(initialItems)
+
+    if initialFingerprint == seasonPassLastFingerprint then
+        return
+    end
+
+    -- Save immediately so the polling loop cannot duplicate the same UI change
+    -- while waiting for the Season Pass shop to finish populating.
+    seasonPassLastFingerprint = initialFingerprint
+
+    if #initialItems == 0 then
+        return
+    end
+
+    task.wait(SEASON_PASS_SETTLE_DELAY)
+
+    local items = getSeasonPassRelevantStock()
+    local fingerprint = getSeasonPassFingerprint(items)
+    seasonPassLastFingerprint = fingerprint
+
+    if #items == 0 then
+        return
+    end
+
+    autoBuyNightMysteryEgg(items, fingerprint)
+
+    print("[Season Pass] Relevant stock changed:", #items, "item(s)")
+
+    for _, item in ipairs(items) do
+        print(item.name, "|", item.stock)
+    end
+
+    sendSeasonPassWebhook(items)
+end
+
 local function getSecretSizeScore(toolName, secretName)
     if toolName == secretName then
         return 0
@@ -1162,6 +1441,15 @@ task.spawn(function()
                 handledThisSpawn = false
             end
         end)
+    end
+end)
+
+
+-- Season Pass Stock monitor. It is independent from Merchant and does not
+-- auto-buy anything; it only sends the four confirmed Season Pass pings.
+task.spawn(function()
+    while task.wait(SEASON_PASS_CHECK_INTERVAL) do
+        safeCall("Season Pass stock monitor", scanSeasonPassStock)
     end
 end)
 
