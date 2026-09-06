@@ -1,5 +1,5 @@
--- PCD FNL BOSS Monitor v27
--- Based on Merchant v25 + tested Season Pass Stock v4 + Night Mystery Egg auto-buy.
+-- PCD FNL BOSS Monitor v28
+-- Based on Merchant v25 + Season Pass Stock + Night Mystery Egg auto-buy.
 -- Merchant banner removed in this version as previously requested.
 -- Season Pass watches: Night Mystery Egg, Level Up Loaf, Totem Of Stars, Raygun.
 
@@ -81,7 +81,7 @@ local SEASON_PASS_WEBHOOK = "https://discord.com/api/webhooks/154616915525278927
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
 -- Do not commit a real secret to a public repository.
 local WEBSITE_API_URL = "https://pcdfnlboss.vercel.app/api/public/game-event"
-local WEBSITE_SECRET = "pcd_fnl_boss_JIsGajZTXIsjlPHd"
+local WEBSITE_SECRET = "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_ENABLED = WEBSITE_SECRET ~= ""
     and WEBSITE_SECRET ~= "REPLACE_WITH_YOUR_PCD_FNL_BOSS_WEBHOOK_SECRET"
 local WEBSITE_HEARTBEAT_INTERVAL = 15
@@ -131,8 +131,9 @@ local seasonPassTargetItems = {
         role = "1537226952287723571"
     },
     ["Raygun"] = {
-        emoji = "<:raygun:1542937449758724296>",
-        role = "1537226801049509929"
+        emoji = "<:raygun:1542937449758724296>"
+        -- No Season Pass role mention for Raygun.
+        -- Raygun is still displayed in the Season Pass stock embed.
     }
 }
 
