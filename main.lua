@@ -1,5 +1,5 @@
--- PCD FNL BOSS Monitor v28
--- Based on Merchant v25 + Season Pass Stock + Night Mystery Egg auto-buy.
+-- PCD FNL BOSS Monitor v29
+-- Based on Merchant v25 + Season Pass Stock + Night Mystery Egg auto-buy + Possible Admin Abuse notifier.
 -- Merchant banner removed in this version as previously requested.
 -- Season Pass watches: Night Mystery Egg, Level Up Loaf, Totem Of Stars, Raygun.
 
@@ -76,6 +76,8 @@ local GEAR_WEBHOOK = "https://discord.com/api/webhooks/1536512837378244618/HN1AE
 local WEATHER_WEBHOOK = "https://discord.com/api/webhooks/1536513275167248406/r15ZIm0kiCDTSzr6LbFl2YhyWeKvLoi4t3ssyXRO7IoneAG2hu88KPu7XzaMiBeOQoJQ"
 local MERCHANT_WEBHOOK = "https://discord.com/api/webhooks/1536513427650908231/2OAq-mAfkJqfaRkaqht95SXr9oAoSuIokJ5C_3-bM-WpXuN8tWlnMqTO7NNNhTUvdt-v"
 local SEASON_PASS_WEBHOOK = "https://discord.com/api/webhooks/1546169155252789279/JTbpTpdAIp8IWoBZRxd41bb4aOkQyaV7do3_Kv5i2BodPCoFuWwzObwh-1F63CgduNA-"
+local ADMIN_ABUSE_WEBHOOK = "https://discord.com/api/webhooks/1546619398259740774/owaNY-8qOgqRno6uyL47qdq1TMlVFeaOzotPrNx89E85vSuUNvPr0504wxeDOo9yt3Zy"
+local ADMIN_ABUSE_ROLE_ID = "1546619211177009252"
 
 -- PCD FNL BOSS website integration
 -- IMPORTANT: set the same secret in Vercel as PCD_FNL_BOSS_WEBHOOK_SECRET.
@@ -168,6 +170,29 @@ local weatherMutations = {
     ["Red Sun"] = "Scorched",
     ["Taco Rain"] = "Taco",
     ["Reverse Sun"] = "Flipped"
+}
+
+
+-- Possible Admin Abuse detection.
+-- These events/mutations are treated only as a signal that an Admin Abuse MAY
+-- be active. The notifier does not claim certainty.
+local ADMIN_ABUSE_CHECK_INTERVAL = 2
+
+local adminAbuseSignals = {
+    ["Taco Rain"] = { event = "Taco Rain", mutation = "Taco" },
+    ["Taco"] = { event = "Taco Rain", mutation = "Taco" },
+
+    ["Reverse Sun"] = { event = "Reverse Sun", mutation = "Flipped" },
+    ["Flipped"] = { event = "Reverse Sun", mutation = "Flipped" },
+
+    ["Disco Party"] = { event = "Disco Party", mutation = "Disco" },
+    ["Disco"] = { event = "Disco Party", mutation = "Disco" },
+
+    ["Sunset"] = { event = "Sunset", mutation = "Sunkissed" },
+    ["Sunkissed"] = { event = "Sunset", mutation = "Sunkissed" },
+
+    ["Admin Party"] = { event = "Admin Party", mutation = "Party" },
+    ["Party"] = { event = "Admin Party", mutation = "Party" }
 }
 
 -- Custom Discord emojis used only for webhook presentation.
@@ -717,6 +742,157 @@ local function sendWeatherWebhook()
     })
 
     sendWebhookRequest(WEATHER_WEBHOOK, data)
+end
+
+
+-- ============================================================================
+-- Possible Admin Abuse notifier
+-- ============================================================================
+local adminAbuseLastFingerprint = ""
+local adminAbuseAlertActive = false
+
+local function adminAbuseTrim(value)
+    return tostring(value or "")
+        :gsub("^%s+", "")
+        :gsub("%s+$", "")
+end
+
+local function addAdminAbuseSignal(found, rawValue)
+    local raw = adminAbuseTrim(rawValue)
+
+    if raw == "" then
+        return
+    end
+
+    local function addOne(signalName)
+        signalName = adminAbuseTrim(signalName)
+        local signal = adminAbuseSignals[signalName]
+
+        if signal then
+            -- Canonicalize aliases so "Taco Rain" and "Taco" are the same state.
+            found[signal.event] = signal.mutation
+        end
+    end
+
+    for token in string.gmatch(raw, "[^,]+") do
+        addOne(token)
+    end
+
+    addOne(raw)
+end
+
+local function collectAdminAbuseSignals()
+    local found = {}
+
+    -- ACTIVE_WEATHERS is already the source used by the normal Weather notifier.
+    if ActiveWeathers:IsA("StringValue") then
+        addAdminAbuseSignal(found, ActiveWeathers.Value)
+    end
+
+    for attributeName, attributeValue in pairs(ActiveWeathers:GetAttributes()) do
+        if attributeValue == true then
+            addAdminAbuseSignal(found, attributeName)
+        elseif typeof(attributeValue) == "string" then
+            addAdminAbuseSignal(found, attributeName)
+            addAdminAbuseSignal(found, attributeValue)
+        end
+    end
+
+    for _, object in ipairs(ActiveWeathers:GetDescendants()) do
+        addAdminAbuseSignal(found, object.Name)
+
+        if object:IsA("StringValue") then
+            addAdminAbuseSignal(found, object.Value)
+        elseif object:IsA("BoolValue") and object.Value == true then
+            addAdminAbuseSignal(found, object.Name)
+        end
+
+        for attributeName, attributeValue in pairs(object:GetAttributes()) do
+            if attributeValue == true then
+                addAdminAbuseSignal(found, attributeName)
+            elseif typeof(attributeValue) == "string" then
+                addAdminAbuseSignal(found, attributeName)
+                addAdminAbuseSignal(found, attributeValue)
+            end
+        end
+    end
+
+    return found
+end
+
+local function getAdminAbuseFingerprint(found)
+    local keys = {}
+
+    for eventName in pairs(found) do
+        table.insert(keys, eventName)
+    end
+
+    table.sort(keys)
+    return table.concat(keys, "|")
+end
+
+local function sendAdminAbuseWebhook(found)
+    local eventNames = {}
+
+    for eventName in pairs(found) do
+        table.insert(eventNames, eventName)
+    end
+
+    table.sort(eventNames)
+
+    local lines = {}
+
+    for _, eventName in ipairs(eventNames) do
+        local mutation = found[eventName]
+
+        table.insert(
+            lines,
+            "🚨 **" .. eventName .. " -> " .. mutation .. "**"
+        )
+    end
+
+    local data = {
+        ["content"] = "<@&" .. ADMIN_ABUSE_ROLE_ID .. ">",
+        ["allowed_mentions"] = {
+            ["roles"] = { ADMIN_ABUSE_ROLE_ID }
+        },
+        ["embeds"] = {{
+            ["title"] = "⚠️ Possible Admin Abuse Detected",
+            ["description"] = "**Admin-only events detected:**\n" .. table.concat(lines, "\n"),
+            ["color"] = 16711680,
+            ["footer"] = { ["text"] = "Updated" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+
+    return sendWebhookRequest(ADMIN_ABUSE_WEBHOOK, data)
+end
+
+local function scanPossibleAdminAbuse()
+    local found = collectAdminAbuseSignals()
+    local fingerprint = getAdminAbuseFingerprint(found)
+
+    if fingerprint == "" then
+        if adminAbuseAlertActive then
+            print("[Admin Abuse] Admin-only signals cleared.")
+        end
+
+        adminAbuseAlertActive = false
+        adminAbuseLastFingerprint = ""
+        return
+    end
+
+    -- Same canonical set is still active: never spam the webhook.
+    if adminAbuseAlertActive and fingerprint == adminAbuseLastFingerprint then
+        return
+    end
+
+    adminAbuseLastFingerprint = fingerprint
+
+    if sendAdminAbuseWebhook(found) then
+        adminAbuseAlertActive = true
+        print("[Admin Abuse] Possible Admin Abuse alert sent:", fingerprint)
+    end
 end
 
 local function trimText(value)
@@ -1451,6 +1627,15 @@ end)
 task.spawn(function()
     while task.wait(SEASON_PASS_CHECK_INTERVAL) do
         safeCall("Season Pass stock monitor", scanSeasonPassStock)
+    end
+end)
+
+
+-- Possible Admin Abuse monitor.
+-- Independent from the normal Weather notifier and does not affect the website.
+task.spawn(function()
+    while task.wait(ADMIN_ABUSE_CHECK_INTERVAL) do
+        safeCall("Possible Admin Abuse monitor", scanPossibleAdminAbuse)
     end
 end)
 
